@@ -20,4 +20,5 @@ The Login Package is a comprehensive authentication and user management service 
 - [Project Structure](./structure.md) - Overview of project organization
 
 ## Getting Started
-For new users, we recommend starting with the [Installation Guide](./installation.md) followed by exploring the [API Reference](./api_reference.md).
+
+- Read docs
