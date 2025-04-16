@@ -9,6 +9,7 @@ from slowapi.errors import RateLimitExceeded
 from contextlib import asynccontextmanager
 
 from app.utils.db import create_db_and_tables
+from app.utils.config import settings
 from app.routers import auth_router, accounts_router, admin_router, recovery_router, registration_router, inter_service_router
 from app.utils.logging import setup_logging, get_logger
 
@@ -16,8 +17,15 @@ from app.utils.logging import setup_logging, get_logger
 setup_logging()
 logger = get_logger(__name__)
 
-# Initialize rate limiter
-limiter = Limiter(key_func=get_remote_address)
+# Format the rate limit string from environment variables
+public_rate_limit = f"{settings.RATE_LIMITS_PUBLIC_ROUTES}/{settings.RATE_LIMITS_PUBLIC_TIME_UNIT}"
+private_rate_limit = f"{settings.RATE_LIMITS_PRIVATE_ROUTES}/{settings.RATE_LIMITS_PRIVATE_TIME_UNIT}"
+
+# Initialize rate limiter with configured values
+limiter = Limiter(
+    key_func=get_remote_address,
+    default_limits=[public_rate_limit]  # Default to public rate limit
+)
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
@@ -27,6 +35,7 @@ async def lifespan(app: FastAPI):
     """
     # Startup code
     logger.info("Application starting up")
+    logger.info(f"Rate limits configured: Public: {public_rate_limit}, Private: {private_rate_limit}")
     create_db_and_tables()
     logger.info("Database and tables initialized")
     

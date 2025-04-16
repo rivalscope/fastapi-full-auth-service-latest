@@ -34,11 +34,17 @@ Usage:
     db_url = settings.DATABASE_URL
     token_expire = settings.ACCESS_TOKEN_EXPIRE_MINUTES
 """
+import os
 from pydantic_settings import BaseSettings
 from dotenv import load_dotenv
 
-# Load environment variables from .env file
-load_dotenv()
+# Get the project root directory (parent directory of app module)
+PROJECT_ROOT = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+ENV_FILE = os.path.join(PROJECT_ROOT, '.env')
+
+# Load environment variables from .env file at project root
+# Use override=True to ensure .env values take precedence over system environment variables
+load_dotenv(dotenv_path=ENV_FILE, override=True)
 
 class Settings(BaseSettings):
     # Database connection settings
@@ -62,7 +68,7 @@ class Settings(BaseSettings):
     
     # Pydantic configuration for environment variable loading
     model_config = {
-        "env_file": ".env",
+        "env_file": ENV_FILE,
         "case_sensitive": True
     }
 
