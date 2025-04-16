@@ -1,27 +1,28 @@
 # Installation: pip install -r requirements.txt
 
 # FastAPI and server (0.103.1)
-fastapi>=0.115.2  
-uvicorn>=0.23.2
-python-multipart>=0.0.6
+fastapi>=0.115.2 # API framework
+uvicorn>=0.23.2 # ASGI server for FastAPI
+python-multipart>=0.0.6 # For handling file uploads
 
 # Database ORM
-sqlalchemy>=2.0.21
+sqlalchemy>=2.0.21 # ORM for database interactions
 
 # Authentication and security
-passlib>=1.7.4
+passlib>=1.7.4 # Password hashing
 bcrypt==3.2.2  # Downgraded to a version compatible with passlib
-python-jose>=3.3.0
-pydantic>=2.4.2
-pydantic-settings>=2.0.3
-python-dotenv>=1.0.0
+python-jose>=3.3.0 # JWT handling
+pydantic>=2.4.2 # Updated to 2.4.2 for compatibility with FastAPI
+pydantic-settings>=2.0.3 # Updated to 2.0.3 for compatibility with FastAPI
+python-dotenv>=1.0.0 # For loading environment variables
 
 # Rate Limiting
 slowapi
 
 # Testing
-pytest>=7.0.0
+pytest>=7.0.0 # Testing framework
 httpx>=0.24.0  # Required for TestClient
+requests>=2.31.0  # Required for TestClient
 
 # Utilities
-email-validator>=2.0.0.post2
+email-validator>=2.0.0.post2 # For user email validation

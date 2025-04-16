@@ -13,14 +13,14 @@ This document provides details for all API endpoints available in the Login Modu
 ## Authentication
 
 ### Login
-**Endpoint**: `POST /auth/login`
+**Endpoint**: `POST /login`
 
 Authenticates a user and returns a JWT token.
 
 **Request Body**:
 ```json
 {
-  "username": "user@example.com",
+  "email": "user@example.com",
   "password": "securepassword"
 }
 ```
@@ -30,29 +30,33 @@ Authenticates a user and returns a JWT token.
 {
   "access_token": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...",
   "token_type": "bearer",
-  "expires_in": 3600
+  "user": {
+    "id": 1,
+    "nickname": "johndoe",
+    "email": "user@example.com"
+  }
 }
 ```
 
 ### Logout
-**Endpoint**: `POST /auth/logout`
+**Endpoint**: `POST /logout`
 
 Invalidates the current user's token.
 
-**Headers**:
-- `Authorization: Bearer {token}`
+**Query Parameters**:
+- `token`: The user's authentication token
 
 **Response** (200 OK):
 ```json
 {
-  "message": "Successfully logged out"
+  "detail": "Logged out successfully"
 }
 ```
 
 ## User Registration
 
 ### Register New User
-**Endpoint**: `POST /users/register`
+**Endpoint**: `POST /register`
 
 Creates a new user account.
 
@@ -60,75 +64,34 @@ Creates a new user account.
 ```json
 {
   "email": "user@example.com",
-  "username": "johndoe",
+  "nickname": "johndoe",
   "password": "SecurePassword123!",
-  "full_name": "John Doe",
-  "recovery_passphrase": "four words as passphrase"
+  "customer_account": "none",
+  "passphrase": "four words as passphrase"
 }
 ```
 
 **Response** (201 Created):
 ```json
 {
-  "id": "123e4567-e89b-12d3-a456-426614174000",
-  "email": "user@example.com",
-  "username": "johndoe",
-  "full_name": "John Doe",
-  "is_active": true,
-  "created_at": "2023-01-01T12:00:00Z"
+  "id": 1,
+  "nickname": "johndoe",
+  "email": "user@example.com"
 }
 ```
 
 ## Account Recovery
 
-### Request Password Reset
-**Endpoint**: `POST /recovery/request-reset`
+### Recover Password
+**Endpoint**: `POST /recovery`
 
-Initiates the password recovery process.
-
-**Request Body**:
-```json
-{
-  "email": "user@example.com"
-}
-```
-
-**Response** (200 OK):
-```json
-{
-  "message": "Recovery instructions sent if email exists"
-}
-```
-
-### Verify Passphrase
-**Endpoint**: `POST /recovery/verify-passphrase`
-
-Verifies the recovery passphrase.
+Resets the user's password using their email and passphrase.
 
 **Request Body**:
 ```json
 {
   "email": "user@example.com",
-  "passphrase": "four words as passphrase"
-}
-```
-
-**Response** (200 OK):
-```json
-{
-  "reset_token": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9..."
-}
-```
-
-### Reset Password
-**Endpoint**: `POST /recovery/reset-password`
-
-Resets the user's password using a valid reset token.
-
-**Request Body**:
-```json
-{
-  "reset_token": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...",
+  "passphrase": "four words as passphrase",
   "new_password": "NewSecurePassword123!"
 }
 ```
@@ -136,228 +99,236 @@ Resets the user's password using a valid reset token.
 **Response** (200 OK):
 ```json
 {
-  "message": "Password successfully reset"
+  "message": "Password changed successfully"
 }
 ```
 
 ## User Account Management
 
 ### Get Current User Profile
-**Endpoint**: `GET /account/profile`
+**Endpoint**: `GET /my_account/`
 
 Returns the current user's profile information.
 
-**Headers**:
-- `Authorization: Bearer {token}`
+**Query Parameters**:
+- `token`: The user's authentication token
 
 **Response** (200 OK):
 ```json
 {
-  "id": "123e4567-e89b-12d3-a456-426614174000",
+  "nickname": "johndoe",
   "email": "user@example.com",
-  "username": "johndoe",
-  "full_name": "John Doe",
-  "is_active": true,
-  "created_at": "2023-01-01T12:00:00Z"
+  "customer_account": "none",
+  "passphrase": "four words as passphrase"
 }
 ```
 
 ### Update User Profile
-**Endpoint**: `PUT /account/profile`
+**Endpoint**: `PUT /my_account/`
 
 Updates the current user's profile information.
 
-**Headers**:
-- `Authorization: Bearer {token}`
+**Query Parameters**:
+- `token`: The user's authentication token
 
 **Request Body**:
 ```json
 {
-  "full_name": "John M. Doe",
-  "username": "john_doe" 
+  "nickname": "john_doe",
+  "email": "new_email@example.com",
+  "password": "NewPassword123!",
+  "customer_account": "premium",
+  "passphrase": "new passphrase words here"
 }
 ```
 
 **Response** (200 OK):
 ```json
 {
-  "id": "123e4567-e89b-12d3-a456-426614174000",
-  "email": "user@example.com",
-  "username": "john_doe",
-  "full_name": "John M. Doe",
-  "is_active": true,
-  "created_at": "2023-01-01T12:00:00Z",
-  "updated_at": "2023-01-02T12:00:00Z"
+  "message": "Account details updated successfully"
 }
 ```
 
-### Change Password
-**Endpoint**: `PUT /account/change-password`
+### Delete User Account
+**Endpoint**: `DELETE /my_account/delete`
 
-Changes the current user's password.
+Deletes the current user's account.
 
-**Headers**:
-- `Authorization: Bearer {token}`
-
-**Request Body**:
-```json
-{
-  "current_password": "CurrentPassword123!",
-  "new_password": "NewPassword456!"
-}
-```
+**Query Parameters**:
+- `token`: The user's authentication token
 
 **Response** (200 OK):
 ```json
 {
-  "message": "Password successfully changed"
+  "detail": "Account deleted successfully"
 }
 ```
 
 ## Admin Account Management
 
 ### List All Users
-**Endpoint**: `GET /admin/users`
+**Endpoint**: `GET /accounts_management/`
 
 Returns a list of all users (admin only).
 
-**Headers**:
-- `Authorization: Bearer {admin_token}`
+**Query Parameters**:
+- `token`: The admin's authentication token
+- `skip`: Number of records to skip (default: 0)
+- `limit`: Maximum number of records to return (default: 100)
+
+**Response** (200 OK):
+```json
+[
+  {
+    "nickname": "johndoe",
+    "email": "user@example.com",
+    "customer_account": "none",
+    "passphrase": "four words as passphrase",
+    "id": 1,
+    "role": "user",
+    "lock": false,
+    "iddle_time": "2023-01-01T12:00:00Z"
+  },
+  // More users...
+]
+```
+
+### Create New User
+**Endpoint**: `POST /accounts_management/`
+
+Creates a new user account (admin only).
 
 **Query Parameters**:
-- `page`: Page number (default: 1)
-- `limit`: Items per page (default: 50)
-- `active`: Filter by active status (optional)
-
-**Response** (200 OK):
-```json
-{
-  "total": 100,
-  "page": 1,
-  "limit": 50,
-  "users": [
-    {
-      "id": "123e4567-e89b-12d3-a456-426614174000",
-      "email": "user@example.com",
-      "username": "johndoe",
-      "full_name": "John Doe",
-      "is_active": true,
-      "created_at": "2023-01-01T12:00:00Z"
-    },
-    // More users...
-  ]
-}
-```
-
-### Get User by ID
-**Endpoint**: `GET /admin/users/{user_id}`
-
-Returns a specific user by ID (admin only).
-
-**Headers**:
-- `Authorization: Bearer {admin_token}`
-
-**Response** (200 OK):
-```json
-{
-  "id": "123e4567-e89b-12d3-a456-426614174000",
-  "email": "user@example.com",
-  "username": "johndoe",
-  "full_name": "John Doe",
-  "is_active": true,
-  "created_at": "2023-01-01T12:00:00Z",
-  "last_login": "2023-01-05T14:30:00Z"
-}
-```
-
-### Update User (Admin)
-**Endpoint**: `PUT /admin/users/{user_id}`
-
-Updates a user's information (admin only).
-
-**Headers**:
-- `Authorization: Bearer {admin_token}`
+- `token`: The admin's authentication token
 
 **Request Body**:
 ```json
 {
-  "is_active": false,
-  "is_admin": false,
-  "full_name": "John M. Doe"
+  "nickname": "newuser",
+  "email": "newuser@example.com",
+  "password": "SecurePassword123!",
+  "customer_account": "none",
+  "passphrase": "four words as passphrase"
+}
+```
+
+**Response** (201 Created):
+```json
+{
+  "nickname": "newuser",
+  "email": "newuser@example.com",
+  "customer_account": "none",
+  "passphrase": "four words as passphrase",
+  "id": 2,
+  "role": "user",
+  "lock": false,
+  "iddle_time": "2023-01-01T12:00:00Z"
+}
+```
+
+### Get User by ID
+**Endpoint**: `GET /accounts_management/{user_id}`
+
+Returns a specific user by ID (admin only).
+
+**Query Parameters**:
+- `token`: The admin's authentication token
+
+**Response** (200 OK):
+```json
+{
+  "nickname": "johndoe",
+  "email": "user@example.com",
+  "customer_account": "none",
+  "passphrase": "four words as passphrase",
+  "id": 1,
+  "role": "user",
+  "lock": false,
+  "iddle_time": "2023-01-01T12:00:00Z"
+}
+```
+
+### Update User (Admin)
+**Endpoint**: `PUT /accounts_management/{user_id}`
+
+Updates a user's information (admin only).
+
+**Query Parameters**:
+- `token`: The admin's authentication token
+
+**Request Body**:
+```json
+{
+  "nickname": "updated_name",
+  "email": "updated@example.com",
+  "password": "NewPassword123!",
+  "customer_account": "premium",
+  "passphrase": "new passphrase words",
+  "role": "user",
+  "lock": false
 }
 ```
 
 **Response** (200 OK):
 ```json
 {
-  "id": "123e4567-e89b-12d3-a456-426614174000",
-  "email": "user@example.com",
-  "username": "johndoe",
-  "full_name": "John M. Doe",
-  "is_active": false,
-  "is_admin": false,
-  "created_at": "2023-01-01T12:00:00Z",
-  "updated_at": "2023-01-10T09:15:00Z"
+  "message": "User details successfully updated for user 1"
 }
 ```
 
 ### Delete User
-**Endpoint**: `DELETE /admin/users/{user_id}`
+**Endpoint**: `DELETE /accounts_management/{user_id}`
 
 Deletes a user (admin only).
 
-**Headers**:
-- `Authorization: Bearer {admin_token}`
+**Query Parameters**:
+- `token`: The admin's authentication token
 
-**Response** (204 No Content)
+**Response** (200 OK):
+```json
+{
+  "message": "User 1 has been successfully deleted"
+}
+```
 
 ## Inter-Service Token Validation
 
 ### Validate Token
-**Endpoint**: `POST /service/validate-token`
+**Endpoint**: `POST /verify`
 
 Validates a JWT token for inter-service communication.
 
 **Request Body**:
 ```json
 {
-  "token": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...",
-  "service_id": "inventory-service"
+  "service_token": "SERVICE_SECRET_TOKEN",
+  "user_token": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9..."
 }
 ```
 
 **Response** (200 OK):
 ```json
 {
+  "id": 1,
+  "email": "user@example.com",
+  "nickname": "johndoe",
+  "role": "user",
   "valid": true,
-  "user_id": "123e4567-e89b-12d3-a456-426614174000",
-  "scopes": ["read:inventory", "write:inventory"]
+  "lock": false,
+  "customer_account": "none"
 }
 ```
 
-### Generate Service Token
-**Endpoint**: `POST /service/token`
+## Root Endpoint
 
-Generates a service-to-service token.
+### Root
+**Endpoint**: `GET /`
 
-**Headers**:
-- `Authorization: Bearer {admin_token}`
-
-**Request Body**:
-```json
-{
-  "service_id": "reporting-service",
-  "scopes": ["read:users", "read:logs"],
-  "expires_in": 3600
-}
-```
+Returns a welcome message.
 
 **Response** (200 OK):
 ```json
 {
-  "access_token": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...",
-  "token_type": "bearer",
-  "expires_in": 3600,
-  "service_id": "reporting-service"
+  "message": "Welcome to the FastAPI Auth System"
 }
 ```

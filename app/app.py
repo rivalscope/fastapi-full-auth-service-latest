@@ -90,6 +90,21 @@ def create_app(testing=False):
         allow_methods=["*"],
         allow_headers=["*"],
     )
+
+    # Register routers for all main features
+    from app.routers import (
+        auth_router,
+        registration_router,
+        accounts_router,
+        admin_router,
+        inter_service_router,
+    )
+
+    app.include_router(auth_router, prefix="/auth")
+    app.include_router(registration_router, prefix="/users")
+    app.include_router(accounts_router, prefix="/account")
+    app.include_router(admin_router, prefix="/admin")
+    app.include_router(inter_service_router, prefix="/service")
     
     # Return both app and limiter for use in main application
     return app, limiter
