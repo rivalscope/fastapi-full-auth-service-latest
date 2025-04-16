@@ -1,7 +1,7 @@
-# Login Module Documentation
+# Auth Service Documentation
 
 ## Overview
-The Login Package is a comprehensive authentication and user management service built with FastAPI. It provides secure authentication, user registration, account management, logging, and inter-service token validation capabilities.
+The Auth Service is a comprehensive authentication and user management service built with FastAPI. It provides secure authentication, user registration, account management, logging, and inter-service token validation capabilities.
 
 ## Features
 - User registration with email verification
