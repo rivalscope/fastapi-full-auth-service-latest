@@ -14,9 +14,6 @@ The Auth Service is a comprehensive authentication and user management service b
 
 ## Documentation Index
 - [API Reference](./api_reference.md) - Detailed API endpoint documentation
-- [Installation Guide](./installation.md) - How to install and run the service
-- [Configuration](./configuration.md) - Configuration options and environment variables
-- [Security](./security.md) - Security features and best practices
 - [Project Structure](./structure.md) - Overview of project organization
 
 ## Getting Started
