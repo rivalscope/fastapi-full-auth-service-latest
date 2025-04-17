@@ -31,8 +31,8 @@ The Auth Service is a comprehensive authentication and user management service b
 For more detailed documentation, see the [docs](./docs) directory:
 
 - [API Reference](./docs/api_reference.md) - Detailed API endpoint documentation
-- [Project Structure](./docs/structure.md) - Overview of project organization
-- [Docker Setup](./docs/docker_app.md) - Detailed Docker configuration documentation
+- [Project Structure](./docs/app_overview.md) - Overview of project organization
+- [Docker Setup](./docs/docker.md) - Detailed Docker configuration documentation
 
 ## Getting Started
 
