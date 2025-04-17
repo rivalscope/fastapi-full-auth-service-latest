@@ -179,16 +179,17 @@ def setup_logging():
     console_handler.setFormatter(formatter)
     logger.addHandler(console_handler)
     
-    # Extract file path from SQLite connection URL and normalize it
+    # Extract file path from SQLite connection URL
     log_db_path = settings.LOG_DATABASE_URL.replace("sqlite:///", "")
     
-    # Ensure it's an absolute path without ./ prefix which can cause issues
-    if log_db_path.startswith('./'):
-        log_db_path = log_db_path[2:]  # Remove ./ prefix
-    
-    # Make the path absolute if it's not already
-    if not os.path.isabs(log_db_path):
-        log_db_path = os.path.abspath(log_db_path)
+    # Ensure data directory exists
+    data_dir = os.path.dirname(log_db_path)
+    if data_dir and not os.path.exists(data_dir):
+        try:
+            os.makedirs(data_dir, exist_ok=True)
+            logger.info(f"Created log data directory: {data_dir}")
+        except Exception as e:
+            sys.stderr.write(f"Error creating data directory for logs: {e}\n")
     
     # Add database storage handler using the configured database path
     try:

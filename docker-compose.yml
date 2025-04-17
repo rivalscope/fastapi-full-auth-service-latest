@@ -1,13 +1,11 @@
 services:
   auth_service:               # Service name
     build: .                  # Builds image using the local Dockerfile
-    container_name: fastapi_auth_service  # Container name
+    container_name: auth_service  # Container name
     ports:
       - "8400:8000"           # Maps host port to container port
     volumes:                  # Volume mappings for persistence
-      # Use descriptive filenames for databases in the root directory
-      - ./auth_service_db.db:/app/auth_service_db.db         # Main database persistence
-      - ./auth_service_logs.db:/app/auth_service_logs.db     # Logs database persistence
+      - auth_service_data:/app/data       # DB Data persistence
     env_file:
       - .env
     environment:
@@ -30,3 +28,8 @@ services:
       # Database Configuration (assuming you need this from your .env file)
       - DATABASE_URL=${DATABASE_URL:-}
     restart: unless-stopped   # Restart policy
+
+# Define named volumes
+volumes:
+  auth_service_data:
+    name: auth_service_data

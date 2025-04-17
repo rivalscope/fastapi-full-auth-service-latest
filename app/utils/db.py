@@ -82,6 +82,12 @@ def create_db_and_tables():
     # Extract file path from SQLite connection URL
     db_file = SQLALCHEMY_DATABASE_URL.replace("sqlite:///", "")
     
+    # Ensure data directory exists
+    data_dir = os.path.dirname(db_file)
+    if not os.path.exists(data_dir):
+        logger.info(f"Creating data directory: {data_dir}")
+        os.makedirs(data_dir, exist_ok=True)
+    
     # Check if database file already exists on disk
     if os.path.exists(db_file):
         logger.info(f"Database file {db_file} already exists")
