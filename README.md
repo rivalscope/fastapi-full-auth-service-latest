@@ -73,23 +73,23 @@ To run the application using Docker, follow these steps:
 
 1. **Build the Docker image**
 ```bash
-docker-compose build
+docker compose build
 ```
 
 2. **Start the containerized application**
 ```bash
-docker-compose up -d
+docker compose up -d
 ```
 The application will be available at http://localhost:8400/docs.
 
 3. **View application logs**
 ```bash
-docker-compose logs -f auth_service
+docker compose logs -f auth_service
 ```
 
 4. **Stop the containerized application**
 ```bash
-docker-compose down
+docker compose down
 ```
 
 #### Customizable Parameters

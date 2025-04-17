@@ -1,5 +1,3 @@
-version: '3.8'                # Docker Compose version
-
 services:
   auth_service:               # Service name
     build: .                  # Builds image using the local Dockerfile
@@ -8,8 +6,8 @@ services:
       - "8400:8000"           # Maps host port to container port
     volumes:                  # Volume mappings for persistence
       # Use descriptive filenames for databases in the root directory
-      - ./auth_service_main.db:/app/sql_app.db         # Main database persistence
-      - ./auth_service_logs.db:/app/logs/logs.db     # Logs database persistence
+      - ./auth_service_db.db:/app/auth_service_db.db         # Main database persistence
+      - ./auth_service_logs.db:/app/auth_service_logs.db     # Logs database persistence
     env_file:
       - .env
     environment:

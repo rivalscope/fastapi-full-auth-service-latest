@@ -13,10 +13,9 @@ both the console and a SQLite database for persistent storage and future analysi
 - Captures source IP addresses for request logging
 
 ## Flow
-1. Creates a logs directory if it doesn't exist
-2. Sets up a root logger with console and SQLite handlers when setup_logging() is called
-3. Log messages are simultaneously displayed on console and stored in database
-4. IP addresses can be included in log entries for request tracking
+1. Sets up a root logger with console and SQLite handlers when setup_logging() is called
+2. Log messages are simultaneously displayed on console and stored in database
+3. IP addresses can be included in log entries for request tracking
 
 ## Security
 - Provides utilities to mask sensitive information like passwords
@@ -55,8 +54,7 @@ import sqlite3
 
 from app.utils.config import settings
 
-# Create logs directory if it doesn't exist
-os.makedirs('logs', exist_ok=True)
+# No longer creating logs directory since we'll store logs.db in the root directory
 
 class SQLiteHandler(logging.Handler):
     """Custom logging handler that stores log entries in a SQLite database."""
@@ -65,25 +63,50 @@ class SQLiteHandler(logging.Handler):
         # Initialize the handler and set up the database
         logging.Handler.__init__(self)
         self.db_path = db_path
+        self.initialized = False
         
-        conn = sqlite3.connect(self.db_path)
-        cursor = conn.cursor()
+        # Ensure the directory exists for the database file
+        db_dir = os.path.dirname(db_path)
+        if db_dir and not os.path.exists(db_dir):
+            try:
+                os.makedirs(db_dir, exist_ok=True)
+            except Exception as e:
+                sys.stderr.write(f"Error creating directory for log database: {e}\n")
+                return
         
-        # Create logs table if it doesn't exist with ip_address column
-        cursor.execute('''
-            CREATE TABLE IF NOT EXISTS logs (
-                id INTEGER PRIMARY KEY AUTOINCREMENT,
-                timestamp TEXT,
-                logger TEXT,
-                level TEXT,
-                message TEXT,
-                ip_address TEXT
-            )
-        ''')
-        conn.commit()
-        conn.close()
+        # Make sure we have write permissions to the directory
+        if not os.access(db_dir or os.getcwd(), os.W_OK):
+            sys.stderr.write(f"No write permission to log database directory: {db_dir or os.getcwd()}\n")
+            return
+            
+        try:
+            conn = sqlite3.connect(self.db_path)
+            cursor = conn.cursor()
+            
+            # Create logs table if it doesn't exist with ip_address column
+            cursor.execute('''
+                CREATE TABLE IF NOT EXISTS logs (
+                    id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    timestamp TEXT,
+                    logger TEXT,
+                    level TEXT,
+                    message TEXT,
+                    ip_address TEXT
+                )
+            ''')
+            conn.commit()
+            conn.close()
+            self.initialized = True
+        except Exception as e:
+            sys.stderr.write(f"Error initializing log database: {e}\n")
+            sys.stderr.write(f"Database path: {self.db_path}\n")
+            sys.stderr.write(f"Current working directory: {os.getcwd()}\n")
 
     def emit(self, record):
+        # Don't attempt to write to database if initialization failed
+        if not self.initialized:
+            return
+            
         # Process a log record and store it in the database
         try:
             conn = sqlite3.connect(self.db_path)
@@ -103,7 +126,9 @@ class SQLiteHandler(logging.Handler):
             
             conn.commit()
             conn.close()
-        except Exception:
+        except Exception as e:
+            sys.stderr.write(f"Error writing to log database: {e}\n")
+            sys.stderr.write(f"Database path: {self.db_path}\n")
             self.handleError(record)
 
 class IPAdapter(logging.LoggerAdapter):
@@ -154,12 +179,27 @@ def setup_logging():
     console_handler.setFormatter(formatter)
     logger.addHandler(console_handler)
     
-    # Add database storage handler
-    db_handler = SQLiteHandler('logs/logs.db')
-    logger.addHandler(db_handler)
+    # Extract file path from SQLite connection URL and normalize it
+    log_db_path = settings.LOG_DATABASE_URL.replace("sqlite:///", "")
+    
+    # Ensure it's an absolute path without ./ prefix which can cause issues
+    if log_db_path.startswith('./'):
+        log_db_path = log_db_path[2:]  # Remove ./ prefix
+    
+    # Make the path absolute if it's not already
+    if not os.path.isabs(log_db_path):
+        log_db_path = os.path.abspath(log_db_path)
+    
+    # Add database storage handler using the configured database path
+    try:
+        db_handler = SQLiteHandler(log_db_path)
+        logger.addHandler(db_handler)
+    except Exception as e:
+        sys.stderr.write(f"Error setting up database handler: {e}\n")
     
     # Log initialization status
     logger.info(f"Logging initialized at level {settings.LOG_LEVEL}")
+    logger.info(f"Logging to database at {log_db_path}")
     
     # Prevent duplicate logs from uvicorn's access logs
     logging.getLogger("uvicorn.access").propagate = False
@@ -189,3 +229,4 @@ def log_with_ip(logger, level, message, ip_address, *args, **kwargs):
         logger.critical(message, *args, **kwargs)
     else:
         logger.info(message, *args, **kwargs)
+

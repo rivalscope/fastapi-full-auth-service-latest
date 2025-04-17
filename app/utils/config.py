@@ -65,6 +65,7 @@ class Settings(BaseSettings):
     
     # Application logging configuration
     LOG_LEVEL: str
+    LOG_DATABASE_URL: str
     
     # Pydantic configuration for environment variable loading
     model_config = {
