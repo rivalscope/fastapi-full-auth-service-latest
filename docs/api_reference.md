@@ -1,3 +1,11 @@
+---
+title: Authentication Service
+date: April 17, 2025
+author: Vasile Alecu AILaboratories.net
+version: 1.0
+status: Production Ready
+---
+
 # API Reference
 
 This document provides details for all API endpoints available in the Login Module.

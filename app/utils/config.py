@@ -43,8 +43,8 @@ PROJECT_ROOT = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(_
 ENV_FILE = os.path.join(PROJECT_ROOT, '.env')
 
 # Load environment variables from .env file at project root
-# Use override=True to ensure .env values take precedence over system environment variables
-load_dotenv(dotenv_path=ENV_FILE, override=True)
+# Use override=False to ensure system/runtime environment variables take precedence
+load_dotenv(dotenv_path=ENV_FILE, override=False)
 
 class Settings(BaseSettings):
     # Database connection settings

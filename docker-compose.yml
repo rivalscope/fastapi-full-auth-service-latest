@@ -1,0 +1,34 @@
+version: '3.8'                # Docker Compose version
+
+services:
+  auth_service:               # Service name
+    build: .                  # Builds image using the local Dockerfile
+    container_name: fastapi_auth_service  # Container name
+    ports:
+      - "8400:8000"           # Maps host port to container port
+    volumes:                  # Volume mappings for persistence
+      # Use descriptive filenames for databases in the root directory
+      - ./auth_service_main.db:/app/sql_app.db         # Main database persistence
+      - ./auth_service_logs.db:/app/logs/logs.db     # Logs database persistence
+    env_file:
+      - .env
+    environment:
+      # Security Settings
+      - SECRET_KEY=${SECRET_KEY:-}
+      - ALGORITHM=${ALGORITHM:-}
+      - ACCESS_TOKEN_EXPIRE_MINUTES=${ACCESS_TOKEN_EXPIRE_MINUTES:-}
+      - IDDLE_MINUTES=${IDDLE_MINUTES:-}
+      - SERVICE_TOKEN=${SERVICE_TOKEN:-}
+      
+      # Rate Limiting Configuration
+      - RATE_LIMITS_PUBLIC_ROUTES=${RATE_LIMITS_PUBLIC_ROUTES:-}
+      - RATE_LIMITS_PRIVATE_ROUTES=${RATE_LIMITS_PRIVATE_ROUTES:-}
+      - RATE_LIMITS_PUBLIC_TIME_UNIT=${RATE_LIMITS_PUBLIC_TIME_UNIT:-}
+      - RATE_LIMITS_PRIVATE_TIME_UNIT=${RATE_LIMITS_PRIVATE_TIME_UNIT:-}
+      
+      # Logging Configuration
+      - LOG_LEVEL=${LOG_LEVEL:-}
+      
+      # Database Configuration (assuming you need this from your .env file)
+      - DATABASE_URL=${DATABASE_URL:-}
+    restart: unless-stopped   # Restart policy

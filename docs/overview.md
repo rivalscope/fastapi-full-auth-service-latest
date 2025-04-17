@@ -1,3 +1,11 @@
+---
+title: Authentication Service
+date: April 17, 2025
+author: Vasile Alecu AILaboratories.net
+version: 1.0
+status: Production Ready
+---
+
 # How It Works: Login Module Technical Implementation
 
 This document provides a detailed explanation of the actual implementation of the Login Module.
