@@ -1,17 +1,38 @@
+---
+title: Authentication Service
+date: April 17, 2025
+author: Vasile Alecu AILaboratories.net
+version: 1.0
+status: Production Ready
+---
+
 # FastAPI Authentication Service
 
 A robust, secure authentication and user management service built with FastAPI.
 
+## Overview
+
+The Auth Service is a comprehensive authentication and user management service built with FastAPI. It provides secure authentication, user registration, account management, logging, and inter-service token validation capabilities.
+
 ## Features
 
+- **User Registration**: New user account creation with email verification
 - **User Authentication**: Secure login/logout with JWT token management
-- **User Registration**: New user account creation with validation
 - **Password Recovery**: Self-service account recovery via passphrase
 - **Account Management**: User account self-management capabilities
 - **Admin Controls**: Admin panel for user account administration
 - **Inter-service Validation**: Token validation for microservice architecture
 - **Security Best Practices**: Password hashing, validation, and token security
+- **Comprehensive Logging**: Detailed logging and security features
 - **Complete Test Suite**: Comprehensive API testing
+
+## Documentation
+
+For more detailed documentation, see the [docs](./docs) directory:
+
+- [API Reference](./docs/api_reference.md) - Detailed API endpoint documentation
+- [Project Structure](./docs/structure.md) - Overview of project organization
+- [Docker Setup](./docs/docker_app.md) - Detailed Docker configuration documentation
 
 ## Getting Started
 
@@ -20,7 +41,7 @@ A robust, secure authentication and user management service built with FastAPI.
 - Python 3.8+
 - pip package manager
 
-### Installation
+### Standard Setup
 
 1. Clone the repository
 ```bash
@@ -33,14 +54,65 @@ cd fastapi_auth_service
 pip install -r requirements.txt
 ```
 
-3. Configure environment (rename .env.example to .env if available)
+3. Configure environment
+Rename .env.example to .env and adjust values if needed
 
-4. Start the service
+4. Start the FastAPI server
 ```bash
+# From Windows
 python main.py
+# From Linux/Mac
+python3 main.py
 ```
 
 The API will be available at http://localhost:8000 with interactive documentation at http://localhost:8000/docs
+
+### Docker Setup
+
+To run the application using Docker, follow these steps:
+
+1. **Build the Docker image**
+```bash
+docker-compose build
+```
+
+2. **Start the containerized application**
+```bash
+docker-compose up -d
+```
+The application will be available at http://localhost:8400/docs.
+
+3. **View application logs**
+```bash
+docker-compose logs -f auth_service
+```
+
+4. **Stop the containerized application**
+```bash
+docker-compose down
+```
+
+#### Customizable Parameters
+
+You can override these environment variables when starting the container:
+
+**Security Settings**
+- `SECRET_KEY` - Secret key for JWT token signing
+- `ALGORITHM` - JWT algorithm (default: HS256)
+- `ACCESS_TOKEN_EXPIRE_MINUTES` - Token validity period (default: 30)
+- `IDDLE_MINUTES` - Session idle timeout (default: 30)
+- `SERVICE_TOKEN` - Inter-service authentication token
+
+**Rate Limiting**
+- `RATE_LIMITS_PUBLIC_ROUTES` - Public routes rate limit (default: 100)
+- `RATE_LIMITS_PRIVATE_ROUTES` - Private routes rate limit (default: 300)
+- `RATE_LIMITS_PUBLIC_TIME_UNIT` - Public time unit (default: 10minute)
+- `RATE_LIMITS_PRIVATE_TIME_UNIT` - Private time unit (default: 60minute)
+
+**Example of overriding parameters:**
+```bash
+SECRET_KEY=my_custom_secret ACCESS_TOKEN_EXPIRE_MINUTES=60 docker-compose up -d
+```
 
 ## Testing
 
@@ -91,12 +163,6 @@ fastapi_auth_service/
 ├── main.py                 # Application entry point
 └── requirements.txt        # Dependencies
 ```
-
-## Documentation
-
-For more detailed documentation, see the [docs](./docs) directory:
-- [API Reference](./docs/api_reference.md)
-- [How It Works](./docs/how_it_works.md)
 
 ## License
 
