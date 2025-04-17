@@ -9,8 +9,7 @@ python-multipart>=0.0.6 # For handling file uploads
 sqlalchemy>=2.0.21 # ORM for database interactions
 
 # Authentication and security
-passlib>=1.7.4 # Password hashing
-bcrypt==3.2.2  # Downgraded to a version compatible with passlib
+cryptography>=42.0.0  # Modern cryptography library (replaces passlib and bcrypt)
 python-jose>=3.3.0 # JWT handling
 pydantic>=2.4.2 # Updated to 2.4.2 for compatibility with FastAPI
 pydantic-settings>=2.0.3 # Updated to 2.0.3 for compatibility with FastAPI
