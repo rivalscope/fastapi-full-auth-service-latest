@@ -133,6 +133,15 @@ async def register(
             detail="Email already registered"
         )
     
+    # Check if nickname already exists to prevent duplicate nicknames
+    nickname_exists = db.query(User).filter(User.nickname == user_data.nickname).first()
+    if nickname_exists:
+        logger.warning(f"Registration failed: Nickname {user_data.nickname} already taken")
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Nickname already taken"
+        )
+    
     # Hash the password for secure storage
     hashed_password = get_password_hash(user_data.password)
     logger.debug(f"Password hashed for new user: {user_data.email}, password: {mask_password(user_data.password)}")
