@@ -36,6 +36,14 @@ from app.models.users_table import User
 from app.utils.security import get_password_hash
 from app.utils.db import get_db
 
+# Terminal colors for test output
+BOLD = "\033[1m"
+RESET = "\033[0m"
+RED = "\033[91m"
+GREEN = "\033[92m"
+YELLOW = "\033[93m"
+BLUE = "\033[94m"
+
 # Configuration
 BASE_URL = "http://localhost:8000"
 TEST_USERS = []  # Global list to track created users for cleanup
@@ -665,6 +673,152 @@ def test_token_validation():
     assert "nickname" in data
     assert "role" in data
     assert "customer_account" in data
+
+# --------------------------------
+# Login Status Tests
+# --------------------------------
+def test_login_sets_logged_in_flag():
+    """Test that logging in sets the is_logged_in flag to True"""
+    # First create a new user
+    email, password, _, user_id = create_user_with_details()
+    if not email:
+        pytest.skip("Failed to create test user")
+    
+    # Login with the user
+    login_response = requests.post(f"{BASE_URL}/login", json={
+        "email": email,
+        "password": password
+    })
+    
+    assert login_response.status_code == 200
+    token = login_response.json()["access_token"]
+    
+    # Get admin token to check user details
+    admin_token = get_admin_token()
+    if not admin_token:
+        pytest.skip("Failed to get admin token")
+    
+    # Check that is_logged_in is True through the admin API
+    user_response = requests.get(
+        f"{BASE_URL}/accounts_management/{user_id}",
+        headers={"Authorization": f"Bearer {admin_token}"}
+    )
+    
+    assert user_response.status_code == 200
+    user_data = user_response.json()
+    assert "is_logged_in" in user_data
+    assert user_data["is_logged_in"] is True
+
+def test_logout_unsets_logged_in_flag():
+    """Test that logging out sets the is_logged_in flag to False"""
+    # First create a new user
+    email, password, _, user_id = create_user_with_details()
+    if not email:
+        pytest.skip("Failed to create test user")
+    
+    # Login with the user
+    login_response = requests.post(f"{BASE_URL}/login", json={
+        "email": email,
+        "password": password
+    })
+    
+    assert login_response.status_code == 200
+    token = login_response.json()["access_token"]
+    
+    # Log the user out
+    logout_response = requests.post(
+        f"{BASE_URL}/logout",
+        headers={"Authorization": f"Bearer {token}"}
+    )
+    assert logout_response.status_code == 200
+    
+    # Get admin token to check user details
+    admin_token = get_admin_token()
+    if not admin_token:
+        pytest.skip("Failed to get admin token")
+    
+    # Check that is_logged_in is False through the admin API
+    user_response = requests.get(
+        f"{BASE_URL}/accounts_management/{user_id}",
+        headers={"Authorization": f"Bearer {admin_token}"}
+    )
+    
+    assert user_response.status_code == 200
+    user_data = user_response.json()
+    assert "is_logged_in" in user_data
+    assert user_data["is_logged_in"] is False
+
+def test_admin_can_see_login_status_in_list():
+    """Test that admin can see login status when listing users"""
+    # Create and log in a user
+    email, password, _, user_id = create_user_with_details()
+    if not email:
+        pytest.skip("Failed to create test user")
+    
+    login_response = requests.post(f"{BASE_URL}/login", json={
+        "email": email,
+        "password": password
+    })
+    
+    assert login_response.status_code == 200
+    
+    # Get admin token
+    admin_token = get_admin_token()
+    if not admin_token:
+        pytest.skip("Failed to get admin token")
+    
+    # Get the list of users through admin API
+    list_response = requests.get(
+        f"{BASE_URL}/accounts_management/",
+        headers={"Authorization": f"Bearer {admin_token}"}
+    )
+    
+    assert list_response.status_code == 200
+    users = list_response.json()
+    
+    # Find our test user in the list
+    test_user = next((user for user in users if user["id"] == user_id), None)
+    assert test_user is not None
+    assert "is_logged_in" in test_user
+    assert test_user["is_logged_in"] is True
+
+def test_idle_duration_format():
+    """Test that the idle_duration field is properly formatted"""
+    # Create and log in a user
+    email, password, _, user_id = create_user_with_details()
+    if not email:
+        pytest.skip("Failed to create test user")
+    
+    login_response = requests.post(f"{BASE_URL}/login", json={
+        "email": email,
+        "password": password
+    })
+    
+    assert login_response.status_code == 200
+    
+    # Get admin token to check user details
+    admin_token = get_admin_token()
+    if not admin_token:
+        pytest.skip("Failed to get admin token")
+    
+    # Check that idle_duration is formatted correctly
+    user_response = requests.get(
+        f"{BASE_URL}/accounts_management/{user_id}",
+        headers={"Authorization": f"Bearer {admin_token}"}
+    )
+    
+    assert user_response.status_code == 200
+    user_data = user_response.json()
+    
+    # Verify the idle_duration field exists and has the proper format
+    assert "idle_duration" in user_data
+    
+    # The format should be either "X sec" or "X min Y sec"
+    duration = user_data["idle_duration"]
+    assert duration is not None
+    
+    # Simple format check - should contain "sec"
+    assert "sec" in duration
 
 # Run tests with colored output when run directly
 if __name__ == "__main__":

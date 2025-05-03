@@ -173,6 +173,15 @@ async def list_all_users(
 
 This implementation provides administrators with real-time visibility into which users are currently active in the system, improving user management and monitoring capabilities.
 
+### Idle Time Display
+
+The admin API now shows a human-readable representation of idle time, making it easier to understand how long a user has been inactive:
+
+- For users idle less than a minute: "X sec" (e.g., "45 sec")
+- For users idle for longer periods: "X min Y sec" (e.g., "5 min 30 sec")
+
+This format is automatically generated when user data is returned by the admin API endpoints, replacing the raw timestamp format that was difficult to interpret.
+
 ## Potential Future Enhancements
 
 1. Add an API endpoint that shows all currently active users

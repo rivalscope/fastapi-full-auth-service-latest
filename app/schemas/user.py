@@ -40,9 +40,9 @@ Routes typically use these schemas as:
 - Internal data models (e.g., UserInDB)
 """
 
-from pydantic import BaseModel, EmailStr, Field, field_validator
+from pydantic import BaseModel, EmailStr, Field, field_validator, computed_field
 from typing import Optional
-from datetime import datetime
+from datetime import datetime, timedelta
 
 # Base user model with common user attributes
 class UserBase(BaseModel):
@@ -123,6 +123,27 @@ class UserInDB(UserBase):
     lock: bool
     iddle_time: Optional[datetime] = None
     is_logged_in: bool = False
+    
+    @computed_field
+    @property
+    def idle_duration(self) -> Optional[str]:
+        """Returns idle time in a human-readable format (minutes and seconds)"""
+        if not self.iddle_time:
+            return None
+            
+        now = datetime.utcnow()
+        idle_duration = now - self.iddle_time
+        
+        # Calculate minutes and seconds
+        total_seconds = int(idle_duration.total_seconds())
+        minutes = total_seconds // 60
+        seconds = total_seconds % 60
+        
+        # Format the idle duration as "X min Y sec"
+        if minutes > 0:
+            return f"{minutes} min {seconds} sec"
+        else:
+            return f"{seconds} sec"
     
     model_config = {
         "from_attributes": True
