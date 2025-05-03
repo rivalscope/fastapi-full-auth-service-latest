@@ -48,4 +48,5 @@ class User(Base):
     iddle_time = Column(DateTime, default=func.now())  # Timestamp of the user's last activity for session timeout
     secret = Column(String(24), nullable=True)  # Random 24-character string for token encryption
     lock = Column(Boolean, default=False)  # Account lock status, defaults to False (unlocked)
+    is_logged_in = Column(Boolean, default=False)  # User's login status, True if currently logged in
 

@@ -114,6 +114,7 @@ async def login(
     user.token = access_token
     user.secret = secret
     user.iddle_time = func.now()
+    user.is_logged_in = True
     
     # Save changes to database
     db.commit()
@@ -166,6 +167,7 @@ async def logout(
     user.token = None
     user.secret = None
     user.iddle_time = None
+    user.is_logged_in = False
     
     # Save changes to database
     db.commit()

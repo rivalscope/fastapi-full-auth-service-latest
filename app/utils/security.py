@@ -233,3 +233,37 @@ def authenticate_user(db: Session, email: str, password: str):
     # Log successful authentication
     logger.info(f"User {email} authenticated successfully")
     return user
+
+def is_user_active(user, update_status=True, db=None):
+    """
+    Checks if a user is actively logged in based on idle time and token status
+    
+    Args:
+        user: User object to check
+        update_status: Whether to update the is_logged_in status if expired (default: True)
+        db: Database session, required if update_status=True
+        
+    Returns:
+        Boolean indicating if the user is actively logged in
+    """
+    if not user.is_logged_in or not user.token or not user.iddle_time:
+        return False
+    
+    # Calculate session timeout based on idle time
+    now = datetime.utcnow()
+    idle_timeout = timedelta(minutes=settings.IDDLE_MINUTES)
+    token_timeout = timedelta(minutes=settings.ACCESS_TOKEN_EXPIRE_MINUTES)
+    
+    # Check if the user's idle time exceeds the configured threshold
+    idle_expired = user.iddle_time + idle_timeout < now
+    token_expired = user.iddle_time + token_timeout < now
+    
+    if idle_expired or token_expired:
+        if update_status and db:
+            # Update the user's login status if expired
+            user.is_logged_in = False
+            db.commit()
+            logger.info(f"User {user.id} session marked as expired due to inactivity")
+        return False
+    
+    return True

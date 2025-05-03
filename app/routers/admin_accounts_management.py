@@ -62,7 +62,7 @@ from sqlalchemy.sql import func
 from app.utils.db import get_db
 from app.models.users_table import User
 from app.schemas.user import UserCreate, UserAdminUpdate, UserInDB
-from app.utils.security import get_password_hash, get_user_by_token, oauth2_scheme, extract_token_from_header
+from app.utils.security import get_password_hash, get_user_by_token, oauth2_scheme, extract_token_from_header, is_user_active
 from app.utils.logging import get_logger, mask_password
 from app.utils.password_validation import validate_password_strength
 
@@ -123,6 +123,11 @@ async def list_all_users(
     # Retrieve paginated list of all users in the system
     logger.info(f"Admin {current_user.id} requested user list. Skip: {skip}, Limit: {limit}")
     users = db.query(User).offset(skip).limit(limit).all()
+    
+    # Check and update active status for each user based on idle time
+    for user in users:
+        is_user_active(user, update_status=True, db=db)
+    
     logger.debug(f"Returning {len(users)} users to admin {current_user.id}")
     return users
 
@@ -141,6 +146,10 @@ async def get_user_details(
             status_code=status.HTTP_404_NOT_FOUND,
             detail=f"User with id {user_id} not found",
         )
+    
+    # Check if user is active based on idle time
+    is_user_active(user, update_status=True, db=db)
+    
     logger.debug(f"Returning user details for ID: {user_id} to admin {current_user.id}")
     return user
 
@@ -202,7 +211,8 @@ async def create_user(
         iddle_time=func.now(),
         secret=None,
         token=None,
-        lock=False
+        lock=False,
+        is_logged_in=False
     )
     
     # Save user to database and return the created user
