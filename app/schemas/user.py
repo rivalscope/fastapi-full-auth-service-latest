@@ -122,6 +122,7 @@ class UserInDB(UserBase):
     role: str
     lock: bool
     iddle_time: Optional[datetime] = None
+    is_logged_in: bool = False
     
     model_config = {
         "from_attributes": True
