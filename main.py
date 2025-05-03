@@ -3,6 +3,7 @@ import uvicorn
 from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
+from fastapi.openapi.utils import get_openapi
 from slowapi import Limiter, _rate_limit_exceeded_handler
 from slowapi.util import get_remote_address
 from slowapi.errors import RateLimitExceeded
@@ -71,7 +72,42 @@ app.include_router(accounts_router)
 app.include_router(admin_router)
 app.include_router(inter_service_router)
 
-@app.get("/", tags=["Root"])
+# Custom OpenAPI schema with security configurations
+def custom_openapi():
+    if app.openapi_schema:
+        return app.openapi_schema
+    
+    openapi_schema = get_openapi(
+        title=app.title,
+        version=app.version,
+        description=app.description,
+        routes=app.routes,
+    )
+    
+    # Add security schemes
+    openapi_schema["components"] = openapi_schema.get("components", {})
+    openapi_schema["components"]["securitySchemes"] = {
+        "userAuth": {
+            "type": "http",
+            "scheme": "bearer",
+            "bearerFormat": "OPAQUE"  # short-lived user key
+        },
+        "serviceAuth": {
+            "type": "apiKey",
+            "in": "header",
+            "name": "X-Service-Token"  # only inter-service hops add this
+        }
+    }
+    
+    # Apply userAuth globally to all endpoints
+    openapi_schema["security"] = [{"userAuth": []}]
+    
+    app.openapi_schema = openapi_schema
+    return app.openapi_schema
+
+app.openapi = custom_openapi
+
+@app.get("/", tags=["Root"], openapi_extra={"security": []})
 async def root():
     """Root endpoint, returns a welcome message"""
     logger.info("Root endpoint accessed")

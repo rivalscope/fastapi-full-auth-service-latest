@@ -12,11 +12,14 @@ Functionality:
     - User authentication against database credentials
     - Random secure string generation for enhanced security
     - User retrieval based on authentication tokens
+    - Bearer token extraction and validation
+    - Service token validation
 
 Flow:
     1. Authentication: User submits credentials → authenticate_user() → verify_password()
     2. Token Creation: After successful auth → create_random_secret() → create_access_token()
     3. Token Usage: Protected endpoints → decode_token() or get_user_by_token()
+    4. Bearer Authentication: extract_token_from_header() → get_user_by_token()
 
 Security:
     - Uses PBKDF2-HMAC-SHA256 for secure password hashing with salt
@@ -24,6 +27,8 @@ Security:
     - Implements token expiration and validation
     - Logs authentication attempts and failures
     - Checks for locked user accounts
+    - Standard Bearer HTTP authentication
+    - Service-to-service authentication via API key
 
 Dependencies:
     - random, string: For generating secure random strings
@@ -34,9 +39,11 @@ Dependencies:
     - app.models.user: For User model access
     - app.config: For application settings
     - app.utils.logging: For security event logging
+    - fastapi.security: For HTTP Bearer and API key security schemes
 
 Usage:
     from app.utils.security import authenticate_user, create_access_token, decode_token
+    from app.utils.security import oauth2_scheme, api_key_header, extract_token_from_header
 
     # Authentication
     user = authenticate_user(db, email, password)
@@ -46,6 +53,11 @@ Usage:
     
     # Token validation
     payload = decode_token(token, user.secret)
+    
+    # Bearer token dependency
+    @app.get("/protected")
+    async def protected_route(token: str = Depends(oauth2_scheme)):
+        # Use token
 """
 
 import random
@@ -59,9 +71,57 @@ from app.models.users_table import User
 from app.utils.config import settings
 from app.utils.logging import get_logger
 from app.utils.password import verify_password, get_password_hash
+from fastapi import Security, HTTPException, status
+from fastapi.security import HTTPBearer, APIKeyHeader
 
 # Initialize logger for security operations and auditing
 logger = get_logger(__name__)
+
+# Define security schemes for OpenAPI docs
+oauth2_scheme = HTTPBearer(
+    scheme_name="userAuth",
+    description="Short-lived opaque key the browser holds",
+    bearerFormat="OPAQUE",
+    auto_error=False
+)
+
+api_key_header = APIKeyHeader(
+    name="X-Service-Token", 
+    scheme_name="serviceAuth",
+    description="Internal service secret",
+    auto_error=False
+)
+
+def extract_token_from_header(authorization: Optional[str] = None):
+    """
+    Extracts token from the Authorization header
+    
+    Args:
+        authorization: The Authorization header value (Bearer token)
+        
+    Returns:
+        The token string if valid, None otherwise
+    """
+    if not authorization:
+        return None
+        
+    scheme, _, token = authorization.partition(" ")
+    if scheme.lower() != "bearer":
+        return None
+        
+    return token
+
+def verify_service_token(service_token: str):
+    """
+    Validates the service token against the configured value
+    
+    Args:
+        service_token: The service token to validate
+        
+    Returns:
+        True if valid, False otherwise
+    """
+    return service_token == settings.SERVICE_TOKEN
 
 def create_random_secret(length=24):
     """

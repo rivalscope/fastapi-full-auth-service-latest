@@ -25,6 +25,7 @@ through a REST API. It handles authentication tokens and session management for 
 - Rate limiting protection against brute force
 - Password never stored or logged in plaintext
 - Activity logging for security audit trail
+- Standard HTTP Bearer authentication
 
 ## Dependencies
 - FastAPI: Web framework for API endpoints
@@ -44,7 +45,7 @@ app.include_router(auth_router)
 - POST /logout: Invalidate user session
 """
 
-from fastapi import APIRouter, Depends, HTTPException, status, Request
+from fastapi import APIRouter, Depends, HTTPException, status, Request, Security
 from sqlalchemy.orm import Session
 from sqlalchemy.sql import func
 
@@ -57,7 +58,7 @@ from app.schemas.token import LoginResponse
 # Security utilities
 from app.utils.security import (
     authenticate_user, create_access_token, 
-    create_random_secret
+    create_random_secret, oauth2_scheme, extract_token_from_header
 )
 
 # Configuration and logging
@@ -77,7 +78,11 @@ router = APIRouter(prefix="", tags=["Authentication Endpoints Login / logout"])
 # Configure rate limiter using client IP address
 limiter = Limiter(key_func=get_remote_address)
 
-@router.post("/login", response_model=LoginResponse)
+@router.post(
+    "/login", 
+    response_model=LoginResponse,
+    openapi_extra={"security": []}
+)
 @limiter.limit(f"{settings.RATE_LIMITS_PUBLIC_ROUTES}/{settings.RATE_LIMITS_PUBLIC_TIME_UNIT}")
 async def login(
     request: Request,
@@ -127,11 +132,24 @@ async def login(
 @limiter.limit(f"{settings.RATE_LIMITS_PUBLIC_ROUTES}/{settings.RATE_LIMITS_PUBLIC_TIME_UNIT}")
 async def logout(
     request: Request,
-    token: str,
+    auth = Security(oauth2_scheme),
     db: Session = Depends(get_db)
 ):
     # Log logout attempt
     logger.info("Logout attempt")
+    
+    # Get token directly from the credentials object
+    if not auth:
+        # Log and respond to missing token
+        logger.warning("Logout failed: No token provided")
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Bearer token required",
+            headers={"WWW-Authenticate": "Bearer"},
+        )
+    
+    # Use the token value directly from the credentials
+    token = auth.credentials
     
     # Find user by token to validate session
     user = db.query(User).filter(User.token == token).first()

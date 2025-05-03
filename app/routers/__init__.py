@@ -27,19 +27,19 @@ Endpoints:
 """
 
 # Importing the router for account recovery operations
-from app.routers.accounts_recovery import router as recovery_router
+from app.routers.accounts_recovery import recovery_router
 
 # Importing the router for admin account management operations
-from app.routers.admin_accounts_management import router as admin_router
+from app.routers.admin_accounts_management import admin_router
 
 # Importing the router for inter-service token validation operations
-from app.routers.inter_service_token_validation import router as inter_service_router
+from app.routers.inter_service_token_validation import inter_service_router
 
 # Importing the router for user account management operations
-from app.routers.user_account_management import router as accounts_router
+from app.routers.user_account_management import accounts_router
 
 # Importing the router for user authentication operations
-from app.routers.users_auth import router as auth_router
+from app.routers.users_auth import auth_router
 
 # Importing the router for user registration operations
-from app.routers.users_registration import router as registration_router
+from app.routers.users_registration import registration_router

@@ -1,8 +1,8 @@
 ---
 title: Authentication Service
-date: April 17, 2025
+date: May 2, 2025
 author: Vasile Alecu AILaboratories.net
-version: 1.0
+version: 1.1
 status: Production Ready
 ---
 
@@ -17,14 +17,38 @@ The Auth Service is a comprehensive authentication and user management service b
 ## Features
 
 - **User Registration**: New user account creation with email verification
-- **User Authentication**: Secure login/logout with JWT token management
+- **User Authentication**: Secure login/logout with JWT token and standard Bearer authentication
 - **Password Recovery**: Self-service account recovery via passphrase
 - **Account Management**: User account self-management capabilities
 - **Admin Controls**: Admin panel for user account administration
 - **Inter-service Validation**: Token validation for microservice architecture
-- **Security Best Practices**: Password hashing, validation, and token security
+- **Security Best Practices**: Password hashing, validation, and standardized authentication headers
 - **Comprehensive Logging**: Detailed logging and security features
 - **Complete Test Suite**: Comprehensive API testing
+- **OpenAPI Integration**: Full Swagger UI support with authentication dialogs
+
+## Authentication System
+
+The service implements a standardized authentication system:
+
+1. **User Authentication**
+   - Uses HTTP Bearer authentication for all protected endpoints
+   - Format: `Authorization: Bearer your_token_here`
+   - Swagger UI displays an Authorize button for easy token input
+
+2. **Service-to-Service Authentication**
+   - For inter-service communication, especially the `/verify` endpoint
+   - Dual authentication with both Bearer token and API key
+   - Formats:
+     - `Authorization: Bearer user_token_here`
+     - `X-Service-Token: service_token_here`
+
+3. **Public Endpoints**
+   - No authentication required for:
+     - `/login` - User authentication
+     - `/register` - User registration
+     - `/recovery` - Password recovery
+     - `/` - Root endpoint (welcome message)
 
 ## Documentation
 
@@ -112,6 +136,33 @@ You can override these environment variables when starting the container:
 **Example of overriding parameters:**
 ```bash
 SECRET_KEY=my_custom_secret ACCESS_TOKEN_EXPIRE_MINUTES=60 docker-compose up -d
+```
+
+## API Usage Examples
+
+### Authentication
+
+Login and obtain a token:
+
+```bash
+curl -X POST "http://localhost:8000/login" \
+  -H "Content-Type: application/json" \
+  -d '{"email": "user@example.com", "password": "secure_password"}'
+```
+
+Make authenticated requests:
+
+```bash
+curl -X GET "http://localhost:8000/my_account/" \
+  -H "Authorization: Bearer your_token_here"
+```
+
+For service-to-service token validation:
+
+```bash
+curl -X POST "http://localhost:8000/verify" \
+  -H "Authorization: Bearer user_token_here" \
+  -H "X-Service-Token: your_service_token_here"
 ```
 
 ## Testing

@@ -1,8 +1,8 @@
 ---
 title: Authentication Service
-date: April 17, 2025
+date: May 2, 2025
 author: Vasile Alecu AILaboratories.net
-version: 1.0
+version: 1.1
 status: Production Ready
 ---
 
@@ -24,6 +24,8 @@ This document provides details for all API endpoints available in the Login Modu
 **Endpoint**: `POST /login`
 
 Authenticates a user and returns a JWT token.
+
+**Security**: None (Public endpoint)
 
 **Request Body**:
 ```json
@@ -51,8 +53,10 @@ Authenticates a user and returns a JWT token.
 
 Invalidates the current user's token.
 
-**Query Parameters**:
-- `token`: The user's authentication token
+**Security**: Bearer Authentication
+
+**Headers**:
+- `Authorization`: Bearer token (e.g., `Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...`)
 
 **Response** (200 OK):
 ```json
@@ -67,6 +71,8 @@ Invalidates the current user's token.
 **Endpoint**: `POST /register`
 
 Creates a new user account.
+
+**Security**: None (Public endpoint)
 
 **Request Body**:
 ```json
@@ -95,6 +101,8 @@ Creates a new user account.
 
 Resets the user's password using their email and passphrase.
 
+**Security**: None (Public endpoint)
+
 **Request Body**:
 ```json
 {
@@ -118,8 +126,10 @@ Resets the user's password using their email and passphrase.
 
 Returns the current user's profile information.
 
-**Query Parameters**:
-- `token`: The user's authentication token
+**Security**: Bearer Authentication
+
+**Headers**:
+- `Authorization`: Bearer token (e.g., `Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...`)
 
 **Response** (200 OK):
 ```json
@@ -136,8 +146,10 @@ Returns the current user's profile information.
 
 Updates the current user's profile information.
 
-**Query Parameters**:
-- `token`: The user's authentication token
+**Security**: Bearer Authentication
+
+**Headers**:
+- `Authorization`: Bearer token (e.g., `Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...`)
 
 **Request Body**:
 ```json
@@ -162,8 +174,10 @@ Updates the current user's profile information.
 
 Deletes the current user's account.
 
-**Query Parameters**:
-- `token`: The user's authentication token
+**Security**: Bearer Authentication
+
+**Headers**:
+- `Authorization`: Bearer token (e.g., `Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...`)
 
 **Response** (200 OK):
 ```json
@@ -179,8 +193,12 @@ Deletes the current user's account.
 
 Returns a list of all users (admin only).
 
+**Security**: Bearer Authentication
+
+**Headers**:
+- `Authorization`: Bearer token (e.g., `Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...`)
+
 **Query Parameters**:
-- `token`: The admin's authentication token
 - `skip`: Number of records to skip (default: 0)
 - `limit`: Maximum number of records to return (default: 100)
 
@@ -206,8 +224,10 @@ Returns a list of all users (admin only).
 
 Creates a new user account (admin only).
 
-**Query Parameters**:
-- `token`: The admin's authentication token
+**Security**: Bearer Authentication
+
+**Headers**:
+- `Authorization`: Bearer token (e.g., `Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...`)
 
 **Request Body**:
 ```json
@@ -239,8 +259,10 @@ Creates a new user account (admin only).
 
 Returns a specific user by ID (admin only).
 
-**Query Parameters**:
-- `token`: The admin's authentication token
+**Security**: Bearer Authentication
+
+**Headers**:
+- `Authorization`: Bearer token (e.g., `Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...`)
 
 **Response** (200 OK):
 ```json
@@ -261,8 +283,10 @@ Returns a specific user by ID (admin only).
 
 Updates a user's information (admin only).
 
-**Query Parameters**:
-- `token`: The admin's authentication token
+**Security**: Bearer Authentication
+
+**Headers**:
+- `Authorization`: Bearer token (e.g., `Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...`)
 
 **Request Body**:
 ```json
@@ -289,8 +313,10 @@ Updates a user's information (admin only).
 
 Deletes a user (admin only).
 
-**Query Parameters**:
-- `token`: The admin's authentication token
+**Security**: Bearer Authentication
+
+**Headers**:
+- `Authorization`: Bearer token (e.g., `Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...`)
 
 **Response** (200 OK):
 ```json
@@ -306,13 +332,13 @@ Deletes a user (admin only).
 
 Validates a JWT token for inter-service communication.
 
-**Request Body**:
-```json
-{
-  "service_token": "SERVICE_SECRET_TOKEN",
-  "user_token": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9..."
-}
-```
+**Security**: Dual Authentication (both required)
+- Bearer Authentication 
+- API Key Authentication
+
+**Headers**:
+- `Authorization`: Bearer token (e.g., `Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...`)
+- `X-Service-Token`: Service authentication token
 
 **Response** (200 OK):
 ```json
@@ -333,6 +359,8 @@ Validates a JWT token for inter-service communication.
 **Endpoint**: `GET /`
 
 Returns a welcome message.
+
+**Security**: None (Public endpoint)
 
 **Response** (200 OK):
 ```json

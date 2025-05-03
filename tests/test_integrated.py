@@ -65,7 +65,8 @@ def setup_and_cleanup():
             try:
                 # Delete test user through admin API
                 requests.delete(
-                    f"{BASE_URL}/accounts_management/{user_id}?token={ADMIN_USER['token']}"
+                    f"{BASE_URL}/accounts_management/{user_id}",
+                    headers={"Authorization": f"Bearer {ADMIN_USER['token']}"}
                 )
                 logger.info(f"Deleted test user with ID: {user_id}")
             except Exception as e:
@@ -74,7 +75,10 @@ def setup_and_cleanup():
     # Finally, delete the admin user using the user's self-delete endpoint
     if ADMIN_USER["token"]:
         try:
-            delete_response = requests.delete(f"{BASE_URL}/my_account/delete?token={ADMIN_USER['token']}")
+            delete_response = requests.delete(
+                f"{BASE_URL}/my_account/delete",
+                headers={"Authorization": f"Bearer {ADMIN_USER['token']}"}
+            )
             if delete_response.status_code == 200:
                 logger.info(f"Admin user {ADMIN_USER['id']} successfully deleted through self-delete endpoint")
             else:
@@ -341,12 +345,18 @@ def test_logout():
     assert login_response.status_code == 200
     token = login_response.json()["access_token"]
     
-    # Now logout
-    logout_response = requests.post(f"{BASE_URL}/logout?token={token}")
+    # Now logout using Bearer authentication
+    logout_response = requests.post(
+        f"{BASE_URL}/logout",
+        headers={"Authorization": f"Bearer {token}"}
+    )
     assert logout_response.status_code == 200
     
     # Verify token is invalidated by trying to access a protected route
-    verify_response = requests.get(f"{BASE_URL}/my_account/?token={token}")
+    verify_response = requests.get(
+        f"{BASE_URL}/my_account/", 
+        headers={"Authorization": f"Bearer {token}"}
+    )
     assert verify_response.status_code == 401
 
 # --------------------------------
@@ -425,8 +435,11 @@ def test_get_account_info():
     assert login_response.status_code == 200
     token = login_response.json()["access_token"]
     
-    # Get account info
-    response = requests.get(f"{BASE_URL}/my_account/?token={token}")
+    # Get account info using Bearer authentication
+    response = requests.get(
+        f"{BASE_URL}/my_account/",
+        headers={"Authorization": f"Bearer {token}"}
+    )
     
     assert response.status_code == 200
     data = response.json()
@@ -448,19 +461,23 @@ def test_update_account_info():
     assert login_response.status_code == 200
     token = login_response.json()["access_token"]
     
-    # Update account info
+    # Update account info using Bearer authentication
     new_nickname = f"updated_{uuid.uuid4().hex[:8]}"
     update_data = {"nickname": new_nickname}
     
     response = requests.put(
-        f"{BASE_URL}/my_account/?token={token}",
+        f"{BASE_URL}/my_account/",
+        headers={"Authorization": f"Bearer {token}"},
         json=update_data
     )
     
     assert response.status_code == 200
     
-    # Verify the update
-    verify_response = requests.get(f"{BASE_URL}/my_account/?token={token}")
+    # Verify the update using Bearer authentication
+    verify_response = requests.get(
+        f"{BASE_URL}/my_account/",
+        headers={"Authorization": f"Bearer {token}"}
+    )
     assert verify_response.status_code == 200
     updated_data = verify_response.json()
     assert updated_data["nickname"] == new_nickname
@@ -480,12 +497,18 @@ def test_delete_account():
     assert login_response.status_code == 200
     token = login_response.json()["access_token"]
     
-    # Delete account
-    response = requests.delete(f"{BASE_URL}/my_account/delete?token={token}")
+    # Delete account using Bearer authentication
+    response = requests.delete(
+        f"{BASE_URL}/my_account/delete",
+        headers={"Authorization": f"Bearer {token}"}
+    )
     assert response.status_code == 200
     
     # Try to access account after deletion (should fail)
-    verify_response = requests.get(f"{BASE_URL}/my_account/?token={token}")
+    verify_response = requests.get(
+        f"{BASE_URL}/my_account/",
+        headers={"Authorization": f"Bearer {token}"}
+    )
     assert verify_response.status_code == 401
 
 # --------------------------------
@@ -503,7 +526,8 @@ def test_admin_list_users():
         pytest.skip("Failed to get admin token")
     
     response = requests.get(
-        f"{BASE_URL}/accounts_management/?token={admin_token}"
+        f"{BASE_URL}/accounts_management/",
+        headers={"Authorization": f"Bearer {admin_token}"}
     )
     
     assert response.status_code == 200
@@ -526,7 +550,8 @@ def test_admin_get_user_by_id():
         pytest.skip("Failed to create regular user")
     
     response = requests.get(
-        f"{BASE_URL}/accounts_management/{user_id}?token={admin_token}"
+        f"{BASE_URL}/accounts_management/{user_id}",
+        headers={"Authorization": f"Bearer {admin_token}"}
     )
     
     assert response.status_code == 200
@@ -553,7 +578,8 @@ def test_admin_update_user():
     }
     
     response = requests.put(
-        f"{BASE_URL}/accounts_management/{user_id}?token={admin_token}",
+        f"{BASE_URL}/accounts_management/{user_id}",
+        headers={"Authorization": f"Bearer {admin_token}"},
         json=update_data
     )
     
@@ -561,7 +587,8 @@ def test_admin_update_user():
     
     # Verify the update
     verify_response = requests.get(
-        f"{BASE_URL}/accounts_management/{user_id}?token={admin_token}"
+        f"{BASE_URL}/accounts_management/{user_id}",
+        headers={"Authorization": f"Bearer {admin_token}"}
     )
     
     assert verify_response.status_code == 200
@@ -582,14 +609,16 @@ def test_admin_delete_user():
     
     # Delete the user
     delete_response = requests.delete(
-        f"{BASE_URL}/accounts_management/{user_id}?token={admin_token}"
+        f"{BASE_URL}/accounts_management/{user_id}",
+        headers={"Authorization": f"Bearer {admin_token}"}
     )
     
     assert delete_response.status_code == 200
     
     # Verify user no longer exists
     verify_response = requests.get(
-        f"{BASE_URL}/accounts_management/{user_id}?token={admin_token}"
+        f"{BASE_URL}/accounts_management/{user_id}",
+        headers={"Authorization": f"Bearer {admin_token}"}
     )
     
     assert verify_response.status_code == 404
@@ -620,18 +649,22 @@ def test_token_validation():
     from app.utils.config import settings
     service_token = settings.SERVICE_TOKEN
     
-    # Verify token with the inter-service endpoint
-    verify_response = requests.post(f"{BASE_URL}/verify", json={
-        "user_token": token,
-        "service_token": service_token
-    })
+    # Verify token with the inter-service endpoint using both authentication headers
+    verify_response = requests.post(
+        f"{BASE_URL}/verify",
+        headers={
+            "Authorization": f"Bearer {token}",
+            "X-Service-Token": service_token
+        }
+    )
     
     assert verify_response.status_code == 200
     data = verify_response.json()
-    assert "valid" in data and data["valid"] is True
     assert "id" in data
     assert "email" in data
     assert "nickname" in data
+    assert "role" in data
+    assert "customer_account" in data
 
 # Run tests with colored output when run directly
 if __name__ == "__main__":

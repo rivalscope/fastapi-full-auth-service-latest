@@ -8,14 +8,13 @@ These schemas provide structured data validation and serialization for token-rel
 ## Functionality
 - Defines structure for authentication tokens
 - Specifies payload data contained in tokens
-- Provides schemas for token verification requests and responses
+- Provides schemas for token verification responses
 - Structures login response data combining tokens and user information
 
 ## Flow
 1. User authentication generates Token/LoginResponse objects
 2. TokenData represents payload stored in JWT tokens
-3. TokenVerify is used when services need to validate tokens
-4. TokenVerifyResponse returns validation results
+3. TokenVerifyResponse returns validation results
 
 ## Security
 - Schemas enforce proper data types for token handling
@@ -55,11 +54,6 @@ class TokenData(BaseModel):
     secret: Optional[str] = None
     lock: Optional[bool] = None 
     customer_account: Optional[str] = None
-
-# Schema for service-to-service token verification requests
-class TokenVerify(BaseModel):
-    service_token: str
-    user_token: str
 
 # Response schema for token verification results
 class TokenVerifyResponse(BaseModel):

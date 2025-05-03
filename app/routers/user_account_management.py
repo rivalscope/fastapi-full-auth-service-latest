@@ -11,13 +11,13 @@ Functionality:
     - Delete user accounts
 
 Flow:
-    1. Each endpoint authenticates the user via token verification
+    1. Each endpoint authenticates the user via Bearer token authentication
     2. Requested operations are performed on the authenticated user's data only
     3. Database is updated with changes
     4. Appropriate responses are returned to the client
 
 Security:
-    - Token-based authentication required for all operations
+    - Bearer token authentication required for all operations
     - Password hashing for secure storage
     - Email uniqueness validation
     - Operations restricted to the account owner only
@@ -40,12 +40,12 @@ Endpoints:
     - DELETE /my_account/delete: Delete user account permanently
 """
 
-from fastapi import APIRouter, Depends, HTTPException, status, Request
+from fastapi import APIRouter, Depends, HTTPException, status, Request, Security
 from sqlalchemy.orm import Session
 from app.utils.db import get_db
 from app.models.users_table import User
-from app.schemas.user import UserUpdate, UserAccountDetails  # UserOut removed as unused
-from app.utils.security import get_password_hash, get_user_by_token
+from app.schemas.user import UserUpdate, UserAccountDetails
+from app.utils.security import get_password_hash, get_user_by_token, oauth2_scheme, extract_token_from_header
 from app.utils.logging import get_logger, mask_password
 from app.utils.password_validation import validate_password_strength
 
@@ -57,9 +57,21 @@ router = APIRouter(prefix="/my_account", tags=["User Accounts management"])
 
 @router.get("/", response_model=UserAccountDetails)
 async def get_account(
-    token: str,
+    auth = Security(oauth2_scheme),
     db: Session = Depends(get_db)
 ):
+    # Get token directly from the credentials object
+    if not auth:
+        # Return unauthorized error if no token provided
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Bearer token required",
+            headers={"WWW-Authenticate": "Bearer"},
+        )
+    
+    # Use the token value directly from the credentials
+    token = auth.credentials
+    
     # Authenticate user with provided token
     user = get_user_by_token(db, token)
     if not user:
@@ -74,11 +86,23 @@ async def get_account(
 
 @router.put("/")
 async def update_account(
-    token: str,
     user_data: UserUpdate,
     request: Request,
+    auth = Security(oauth2_scheme),
     db: Session = Depends(get_db)
 ):
+    # Get token directly from the credentials object
+    if not auth:
+        # Return unauthorized error if no token provided
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Bearer token required",
+            headers={"WWW-Authenticate": "Bearer"},
+        )
+    
+    # Use the token value directly from the credentials
+    token = auth.credentials
+    
     # Authenticate user with provided token
     user = get_user_by_token(db, token)
     if not user:
@@ -122,7 +146,7 @@ async def update_account(
     
     # Update customer account status if provided
     if "customer_account" in update_data and user_data.customer_account is not None:
-        user.customer_account = user_data.customer_account# Update customer account status if provided
+        user.customer_account = user_data.customer_account
    
     # Update passphrase status if provided  
     if "passphrase" in update_data and user_data.passphrase is not None:
@@ -137,9 +161,21 @@ async def update_account(
 
 @router.delete("/delete")
 async def delete_account(
-    token: str,
+    auth = Security(oauth2_scheme),
     db: Session = Depends(get_db)
 ):
+    # Get token directly from the credentials object
+    if not auth:
+        # Return unauthorized error if no token provided
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Bearer token required",
+            headers={"WWW-Authenticate": "Bearer"},
+        )
+    
+    # Use the token value directly from the credentials
+    token = auth.credentials
+    
     # Authenticate user with provided token
     user = get_user_by_token(db, token)
     if not user:
@@ -164,4 +200,4 @@ async def delete_account(
     return {"detail": "Account deleted successfully"}
 
 # Export router for inclusion in main application
-auth_router = router
+accounts_router = router

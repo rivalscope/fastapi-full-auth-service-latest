@@ -14,14 +14,14 @@ It enables secure, role-based administrative access to user account operations.
 - Lock/unlock user accounts for security purposes
 
 ## Flow:
-1. Admin authentication verification through token validation
+1. Admin authentication verification through Bearer token validation
 2. Role-based access control ensuring only admin users can access endpoints
 3. Database operations via SQLAlchemy ORM
 4. Comprehensive logging for audit and security monitoring
 5. Secure password handling with hashing
 
 ## Security:
-- All endpoints require valid authentication token
+- All endpoints require valid authentication token via Bearer header
 - Admin role verification before allowing sensitive operations
 - Password hashing for secure storage
 - Account locking capability for security incidents
@@ -56,13 +56,13 @@ app.include_router(admin_router)
 """
 
 from typing import List
-from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi import APIRouter, Depends, HTTPException, status, Security
 from sqlalchemy.orm import Session
 from sqlalchemy.sql import func
 from app.utils.db import get_db
 from app.models.users_table import User
 from app.schemas.user import UserCreate, UserAdminUpdate, UserInDB
-from app.utils.security import get_password_hash, get_user_by_token
+from app.utils.security import get_password_hash, get_user_by_token, oauth2_scheme, extract_token_from_header
 from app.utils.logging import get_logger, mask_password
 from app.utils.password_validation import validate_password_strength
 
@@ -79,9 +79,21 @@ router = APIRouter(
 )
 
 async def get_current_admin_user(
-    token: str,
+    auth = Security(oauth2_scheme),
     db: Session = Depends(get_db)
 ) -> User:
+    # Get token directly from the credentials object
+    if not auth:
+        logger.warning("Admin access attempt failed: No token provided")
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Bearer token required",
+            headers={"WWW-Authenticate": "Bearer"},
+        )
+    
+    # Use the token value directly from the credentials
+    token = auth.credentials
+    
     # Authenticate user based on token and verify admin privileges
     user = get_user_by_token(db, token)
     if not user:
@@ -103,7 +115,6 @@ async def get_current_admin_user(
 
 @router.get("/", response_model=List[UserInDB])
 async def list_all_users(
-    token: str,
     skip: int = 0,
     limit: int = 100,
     db: Session = Depends(get_db),
@@ -118,7 +129,6 @@ async def list_all_users(
 @router.get("/{user_id}", response_model=UserInDB)
 async def get_user_details(
     user_id: int,
-    token: str,
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_admin_user),
 ):
@@ -137,7 +147,6 @@ async def get_user_details(
 @router.post("/", response_model=UserInDB, status_code=status.HTTP_201_CREATED)
 async def create_user(
     user_data: UserCreate,
-    token: str,
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_admin_user),
 ):
@@ -207,7 +216,6 @@ async def create_user(
 async def update_user(
     user_id: int,
     user_update: UserAdminUpdate,
-    token: str,
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_admin_user),
 ):
@@ -277,7 +285,6 @@ async def update_user(
 @router.delete("/{user_id}", status_code=status.HTTP_200_OK)
 async def delete_user(
     user_id: int,
-    token: str,
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_admin_user),
 ):
@@ -311,5 +318,5 @@ async def delete_user(
     return {"message": f"User {user_id} has been successfully deleted"}
 
 # Router export for inclusion in the main application
-auth_router = router
+admin_router = router
 

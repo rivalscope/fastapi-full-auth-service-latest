@@ -24,6 +24,16 @@ The integrated test file includes tests for:
 - Admin account management
 - Inter-service token validation
 
+## Authentication Method
+
+The test suite uses standard HTTP Bearer authentication for authenticated endpoints:
+- All authenticated requests include an `Authorization` header with format: `Bearer {token}`
+- The inter-service token validation endpoints use dual authentication:
+  - `Authorization` header with the user's bearer token
+  - `X-Service-Token` header with the service token
+
+This approach follows industry standard authentication practices and aligns with the OpenAPI specification.
+
 ## Test Approach
 
 The test suite follows a clean and efficient testing approach:

@@ -50,7 +50,11 @@ logger = logging.getLogger(__name__)
 router = APIRouter(prefix="/recovery", tags=["Password Recovery"])
 
 # Define the password recovery endpoint
-@router.post("", status_code=status.HTTP_200_OK)
+@router.post(
+    "", 
+    status_code=status.HTTP_200_OK,
+    openapi_extra={"security": []}  # Public endpoint - no auth required
+)
 async def recover_password(
     recovery_data: UserPasswordRecovery,  # Input data containing email, nickname, and new password
     db: Session = Depends(get_db)  # Inject database session dependency
@@ -110,3 +114,6 @@ async def recover_password(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail="An error occurred during password recovery"
         )
+
+# Export router for inclusion in the main application
+recovery_router = router

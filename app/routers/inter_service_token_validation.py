@@ -13,7 +13,7 @@ services can rely on to confirm user identity and permissions.
 - Implements secure token verification with multiple validation layers
 
 ## Flow
-1. Receive verification request containing service token and user token
+1. Receive verification request with Authorization header (user token) and X-Service-Token header
 2. Validate that the requesting service is authorized
 3. Locate the user associated with the provided token
 4. Verify token authenticity by decoding with user's secret
@@ -27,6 +27,8 @@ services can rely on to confirm user identity and permissions.
 - Automatically invalidates compromised tokens
 - Resets user authentication on any security breach
 - Times out inactive sessions based on configured idle time
+- Standard HTTP Bearer authentication for user tokens
+- API key authentication for service-to-service communication
 
 ## Dependencies
 - FastAPI: Web framework for API endpoints
@@ -36,21 +38,23 @@ services can rely on to confirm user identity and permissions.
 
 ## Usage
 This endpoint is called by other microservices when they need to verify a user's identity.
-Services must provide both their service token and the user's token in the request.
+Services must provide both the Authorization header with user token and X-Service-Token header.
 
 ## Endpoints
 - POST /verify: Verifies user token and returns user information on success
 """
 
 from datetime import datetime
-# Removed unused timedelta import
-from fastapi import APIRouter, Depends, HTTPException, status, Request
+from fastapi import APIRouter, Depends, HTTPException, status, Request, Security
 from sqlalchemy.orm import Session
 from sqlalchemy.sql import func
 from app.utils.db import get_db
 from app.models.users_table import User
-from app.schemas.token import TokenVerify, TokenVerifyResponse
-from app.utils.security import decode_token
+from app.schemas.token import TokenVerifyResponse
+from app.utils.security import (
+    decode_token, oauth2_scheme, api_key_header, 
+    extract_token_from_header, verify_service_token
+)
 from app.utils.config import settings
 from app.utils.logging import get_logger
 from slowapi import Limiter
@@ -63,18 +67,36 @@ router = APIRouter(prefix="", tags=["Token Verification Endpoint (Interservice C
 # Configure rate limiting to prevent brute force attacks
 limiter = Limiter(key_func=get_remote_address)
 
-@router.post("/verify", response_model=TokenVerifyResponse)
+@router.post(
+    "/verify", 
+    response_model=TokenVerifyResponse,
+    openapi_extra={
+        "security": [{"userAuth": [], "serviceAuth": []}]
+    }
+)
 @limiter.limit(f"{settings.RATE_LIMITS_PRIVATE_ROUTES}/{settings.RATE_LIMITS_PRIVATE_TIME_UNIT}")
 async def verify_token(
     request: Request,
-    token_data: TokenVerify,
+    auth = Security(oauth2_scheme),
+    service_token: str = Security(api_key_header),
     db: Session = Depends(get_db)
 ):
     # Log verification request for audit trail
     logger.info("Token verification request received")
     
+    # Get token directly from the credentials object
+    if not auth:
+        logger.warning("Token verification failed: No user token provided")
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Not found"
+        )
+    
+    # Use the token value directly from the credentials
+    user_token = auth.credentials
+    
     # Verify service token to ensure request comes from authorized service
-    if token_data.service_token != settings.SERVICE_TOKEN:
+    if not verify_service_token(service_token):
         logger.warning("Token verification failed: Invalid service token")
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
@@ -82,7 +104,7 @@ async def verify_token(
         )
     
     # Look up the user by their token in the database
-    user = db.query(User).filter(User.token == token_data.user_token).first()
+    user = db.query(User).filter(User.token == user_token).first()
     if not user:
         logger.warning("Token verification failed: User token not found")
         raise HTTPException(
@@ -91,7 +113,7 @@ async def verify_token(
         )
     
     # Decode and verify token authenticity using user's secret
-    payload = decode_token(token_data.user_token, user.secret)
+    payload = decode_token(user_token, user.secret)
     if not payload:
         logger.warning("Token verification failed: Invalid token payload")
         user.token = None
@@ -143,4 +165,4 @@ async def verify_token(
     return TokenVerifyResponse(id=user.id, email=user.email, nickname=user.nickname, role=user.role, lock=user.lock, customer_account=user.customer_account)
 
 # Export the router to be included in the main application
-verify_router = router
+inter_service_router = router

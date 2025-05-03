@@ -1,8 +1,8 @@
 ---
 title: Authentication Service
-date: April 17, 2025
+date: May 2, 2025
 author: Vasile Alecu AILaboratories.net
-version: 1.0
+version: 1.1
 status: Production Ready
 ---
 
@@ -26,7 +26,7 @@ This document provides a detailed explanation of the actual implementation of th
 The Login Module is implemented as a FastAPI application with a clear separation of concerns:
 
 ```
-uth_service/
+auth_service/
 │
 ├── .env                          # Environment variables configuration
 ├── main.py                       # Application entry point
@@ -57,7 +57,7 @@ uth_service/
 │   └── utils/                    # Utility functions
 │       ├── __init__.py           # (if exists)
 │       ├── config.py             # Configuration settings
-│       ├── security.py           # Security-related utilities (hashing, JWT)
+│       ├── security.py           # Security-related utilities (hashing, JWT, bearer token)
 │       ├── logging.py            # Logging configuration and utilities
 │       ├── password.py           # Password validation, policies, and management
 │       ├── password_validation.py# Enforce strong user input for passwords
@@ -82,73 +82,86 @@ The authentication system is defined in `app/routers/users_auth.py` and uses sev
 
 ```python
 @router.post("/login")
+@limiter.limit(f"{settings.RATE_LIMITS_PUBLIC_ROUTES}/{settings.RATE_LIMITS_PUBLIC_TIME_UNIT}")
 async def login(
-    form_data: OAuth2PasswordRequestForm = Depends(),
+    request: Request,
+    user_data: UserLogin,
     db: Session = Depends(get_db)
 ):
-    # Find user by username/email
-    user = get_user_by_username(db, form_data.username)
+    # Log login attempt with email for audit trail
+    logger.info(f"Login attempt for email: {user_data.email}")
+    
+    # Authenticate user credentials against database
+    user = authenticate_user(db, user_data.email, user_data.password)
     if not user:
-        # Also try by email
-        user = get_user_by_email(db, form_data.username)
-        
-    # Verify user exists and password is correct
-    if not user or not verify_password(form_data.password, user.hashed_password):
-        # Log failed attempt
-        logger.warning(f"Failed login attempt for username: {form_data.username}")
-        raise HTTPException(401, detail="Incorrect username or password")
-        
-    # Check if user is active
-    if not user.is_active:
-        raise HTTPException(401, detail="Account is disabled")
-        
-    # Create access token with 30-minute expiration
-    access_token_expires = timedelta(minutes=settings.ACCESS_TOKEN_EXPIRE_MINUTES)
-    access_token = create_access_token(
-        data={"sub": str(user.id)}, 
-        expires_delta=access_token_expires
-    )
+        # Log and respond to failed authentication
+        logger.warning(f"Login failed: Invalid credentials for {user_data.email}")
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Incorrect email or password",
+            headers={"WWW-Authenticate": "Bearer"},
+        )
     
-    # Log successful login
-    logger.info(f"User {user.id} logged in successfully")
+    # Generate unique secret for this session's JWT
+    secret = create_random_secret()
     
-    # Store token in database for active session tracking
-    store_active_token(db, user.id, access_token)
+    # Prepare user data for token and create JWT
+    token_data = {"id": user.id, "nickname": user.nickname, "role": user.role}
+    access_token = create_access_token(token_data, secret)
     
+    # Update user record with new session information
+    user.token = access_token
+    user.secret = secret
+    user.iddle_time = func.now()
+    
+    # Save changes to database
+    db.commit()
+    
+    # Log successful authentication
+    logger.info(f"User logged in successfully: {user.email}")
+    
+    # Return token and user information
     return {
-        "access_token": access_token,
+        "access_token": access_token, 
         "token_type": "bearer",
-        "expires_in": settings.ACCESS_TOKEN_EXPIRE_MINUTES * 60
+        "user": user
     }
 ```
 
 ### JWT Token Structure
 
 The actual JWT tokens contain the following claims:
-- `sub`: User ID (UUID string)
+- `id`: User ID 
+- `nickname`: User's nickname
+- `role`: User's role (e.g., "user", "admin")
 - `exp`: Expiration timestamp
-- `iat`: Issued at timestamp
-- `type`: Token type ("access_token")
-- `roles`: Array of user roles (e.g., ["user", "admin"])
-
-Example JWT payload:
-```json
-{
-  "sub": "550e8400-e29b-41d4-a716-446655440000",
-  "exp": 1616963696,
-  "iat": 1616961896,
-  "type": "access_token",
-  "roles": ["user"]
-}
-```
 
 ### Token Validation Implementation
 
-Token validation uses FastAPI's dependency injection system:
+Token validation uses FastAPI's dependency injection system with Bearer authentication:
 
 ```python
-def get_current_user(
-    token: str = Depends(oauth2_scheme),
+def extract_token_from_header(authorization: Optional[str] = None):
+    """
+    Extracts token from the Authorization header
+    
+    Args:
+        authorization: The Authorization header value (Bearer token)
+        
+    Returns:
+        The token string if valid, None otherwise
+    """
+    if not authorization:
+        return None
+        
+    scheme, _, token = authorization.partition(" ")
+    if scheme.lower() != "bearer":
+        return None
+        
+    return token
+
+async def get_current_user(
+    auth: str = Security(oauth2_scheme),
     db: Session = Depends(get_db)
 ):
     credentials_exception = HTTPException(
@@ -157,51 +170,87 @@ def get_current_user(
         headers={"WWW-Authenticate": "Bearer"},
     )
     
-    try:
-        # Decode JWT token
-        payload = jwt.decode(
-            token, 
-            settings.SECRET_KEY, 
-            algorithms=[settings.ALGORITHM]
-        )
-        user_id: str = payload.get("sub")
-        
-        if user_id is None:
-            raise credentials_exception
-            
-        # Check if token is in active sessions
-        if not is_token_active(db, user_id, token):
-            raise credentials_exception
-            
-    except JWTError:
+    # Extract token from Authorization header
+    token = extract_token_from_header(auth)
+    if not token:
         raise credentials_exception
-        
-    # Get user from database
-    user = get_user_by_id(db, user_id)
-    if user is None or not user.is_active:
+    
+    # Get the user by token
+    user = get_user_by_token(db, token)
+    if not user:
         raise credentials_exception
-        
+    
+    # Verify the token using user's secret
+    payload = decode_token(token, user.secret)
+    if not payload:
+        # Invalidate user credentials on token error
+        user.token = None
+        user.secret = None
+        user.iddle_time = None
+        db.commit()
+        raise credentials_exception
+    
+    # Verify token belongs to the correct user
+    if payload.get("id") != user.id:
+        user.token = None
+        user.secret = None
+        user.iddle_time = None
+        db.commit()
+        raise credentials_exception
+    
     return user
 ```
 
 ### Logout Process
 
-Unlike using a token blacklist, the system actually maintains active sessions in the database:
+The logout process now uses Bearer authentication to identify the token to invalidate:
 
 ```python
 @router.post("/logout")
+@limiter.limit(f"{settings.RATE_LIMITS_PUBLIC_ROUTES}/{settings.RATE_LIMITS_PUBLIC_TIME_UNIT}")
 async def logout(
-    current_user: User = Depends(get_current_user),
-    token: str = Depends(oauth2_scheme),
+    request: Request,
+    auth: str = Security(oauth2_scheme),
     db: Session = Depends(get_db)
 ):
-    # Remove token from active sessions
-    remove_active_token(db, current_user.id, token)
+    # Log logout attempt
+    logger.info("Logout attempt")
     
-    # Log logout
-    logger.info(f"User {current_user.id} logged out")
+    # Extract token from Authorization header
+    token = extract_token_from_header(auth)
+    if not token:
+        # Log and respond to missing token
+        logger.warning("Logout failed: No token provided")
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Bearer token required",
+            headers={"WWW-Authenticate": "Bearer"},
+        )
     
-    return {"message": "Successfully logged out"}
+    # Find user by token to validate session
+    user = db.query(User).filter(User.token == token).first()
+    if not user:
+        # Log and respond to invalid token
+        logger.warning("Logout failed: Invalid token")
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Invalid token",
+            headers={"WWW-Authenticate": "Bearer"},
+        )
+    
+    # Clear user session data to invalidate token
+    user.token = None
+    user.secret = None
+    user.iddle_time = None
+    
+    # Save changes to database
+    db.commit()
+    
+    # Log successful logout
+    logger.info(f"User logged out successfully: {user.email}")
+    
+    # Return success message
+    return {"detail": "Logged out successfully"}
 ```
 
 ## User Registration
@@ -218,12 +267,12 @@ async def register_user(
 ):
     # Check if email already exists
     existing_email = get_user_by_email(db, user_create.email)
-    if existing_email:
+    if (existing_email):
         raise HTTPException(400, detail="Email already registered")
     
     # Check if username exists
     existing_username = get_user_by_username(db, user_create.username)
-    if existing_username:
+    if (existing_username):
         raise HTTPException(400, detail="Username already taken")
     
     # Validate password against policy
@@ -397,49 +446,38 @@ async def reset_password(
 
 ## User Account Management
 
-User self-service functionality is implemented in `app/routers/user_account_management.py`.
+The user account management implementation in `app/routers/user_account_management.py` now uses Bearer authentication for all operations.
 
 ### Profile Management
 
 ```python
-@router.get("/profile", response_model=UserResponse)
-async def get_current_user_profile(
-    current_user: User = Depends(get_current_user)
-):
-    return current_user
-
-@router.put("/profile", response_model=UserResponse)
-async def update_user_profile(
-    profile_update: UserProfileUpdate,
-    current_user: User = Depends(get_current_user),
+@router.get("/", response_model=UserAccountDetails)
+async def get_account(
+    auth: str = Security(oauth2_scheme),
     db: Session = Depends(get_db)
 ):
-    # Check if username update is requested and it's different
-    if (profile_update.username is not None and 
-        profile_update.username != current_user.username):
-        # Check if new username is available
-        existing_user = get_user_by_username(db, profile_update.username)
-        if existing_user:
-            raise HTTPException(400, detail="Username already taken")
+    # Extract token from Authorization header
+    token = extract_token_from_header(auth)
+    if not token:
+        # Return unauthorized error if no token provided
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Bearer token required",
+            headers={"WWW-Authenticate": "Bearer"},
+        )
+    
+    # Authenticate user with provided token
+    user = get_user_by_token(db, token)
+    if not user:
+        # Return unauthorized error if token is invalid
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Invalid token",
+            headers={"WWW-Authenticate": "Bearer"},
+        )
         
-        current_user.username = profile_update.username
-    
-    # Update any provided fields
-    for field, value in profile_update.dict(exclude_unset=True).items():
-        if field != "username":  # Already handled above
-            setattr(current_user, field, value)
-    
-    # Update modified timestamp
-    current_user.updated_at = datetime.utcnow()
-    
-    # Commit changes
-    db.commit()
-    db.refresh(current_user)
-    
-    # Log profile update
-    logger.info(f"Profile updated for user {current_user.id}")
-    
-    return current_user
+    # Return the authenticated user's account information
+    return user
 ```
 
 ### Password Change
@@ -495,21 +533,43 @@ async def change_password(
 
 ## Admin Account Management
 
-Admin functionality is implemented in `app/routers/admin_accounts_management.py`.
+Admin functionality is implemented in `app/routers/admin_accounts_management.py` with Bearer authentication.
 
 ### Admin Authentication
 
 ```python
-def get_admin_user(
-    current_user: User = Depends(get_current_user)
-):
-    if not current_user.is_admin:
-        logger.warning(f"Unauthorized admin access attempt by user {current_user.id}")
+async def get_current_admin_user(
+    auth: str = Security(oauth2_scheme),
+    db: Session = Depends(get_db)
+) -> User:
+    # Extract token from Authorization header
+    token = extract_token_from_header(auth)
+    if not token:
+        logger.warning("Admin access attempt failed: No token provided")
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Bearer token required",
+            headers={"WWW-Authenticate": "Bearer"},
+        )
+    
+    # Authenticate user based on token and verify admin privileges
+    user = get_user_by_token(db, token)
+    if not user:
+        logger.warning("Admin access attempt failed: Invalid token")
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Invalid token",
+            headers={"WWW-Authenticate": "Bearer"},
+        )
+    
+    # Ensure user has admin role before granting access
+    if user.role != "admin":
+        logger.warning(f"Unauthorized admin access attempt by user ID: {user.id}")
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
-            detail="Not authorized for admin operations"
+            detail="Insufficient permissions. Admin role required.",
         )
-    return current_user
+    return user
 ```
 
 ### List Users Endpoint
@@ -520,7 +580,7 @@ async def list_users(
     page: int = Query(1, ge=1),
     limit: int = Query(50, ge=1, le=100),
     active: Optional[bool] = None,
-    admin_user: User = Depends(get_admin_user),
+    admin_user: User = Depends(get_current_admin_user),
     db: Session = Depends(get_db)
 ):
     # Calculate offset for pagination
@@ -554,7 +614,7 @@ async def list_users(
 @router.get("/users/{user_id}", response_model=UserAdminResponse)
 async def get_user(
     user_id: UUID,
-    admin_user: User = Depends(get_admin_user),
+    admin_user: User = Depends(get_current_admin_user),
     db: Session = Depends(get_db)
 ):
     user = get_user_by_id(db, str(user_id))
@@ -570,7 +630,7 @@ async def get_user(
 async def update_user(
     user_id: UUID,
     user_update: UserAdminUpdate,
-    admin_user: User = Depends(get_admin_user),
+    admin_user: User = Depends(get_current_admin_user),
     db: Session = Depends(get_db)
 ):
     user = get_user_by_id(db, str(user_id))
@@ -602,7 +662,7 @@ async def update_user(
 async def delete_user(
     user_id: UUID,
     permanent: bool = Query(False),
-    admin_user: User = Depends(get_admin_user),
+    admin_user: User = Depends(get_current_admin_user),
     db: Session = Depends(get_db)
 ):
     user = get_user_by_id(db, str(user_id))
@@ -635,103 +695,75 @@ async def delete_user(
 
 ## Inter-Service Token Validation
 
-The service-to-service authentication is implemented in `app/routers/inter_service_token_validation.py`.
+The service-to-service authentication is implemented in `app/routers/inter_service_token_validation.py` and now uses dual authentication with both Bearer token and X-Service-Token headers.
+
+### Security Schemes
+
+```python
+# Define security schemes for OpenAPI docs
+oauth2_scheme = HTTPBearer(
+    scheme_name="userAuth",
+    description="Short-lived opaque key the browser holds",
+    bearerFormat="OPAQUE",
+    auto_error=False
+)
+
+api_key_header = APIKeyHeader(
+    name="X-Service-Token", 
+    scheme_name="serviceAuth",
+    description="Internal service secret",
+    auto_error=False
+)
+```
 
 ### Token Validation
 
 ```python
-@router.post("/validate-token")
-async def validate_token(
-    validation_request: TokenValidationRequest,
-    db: Session = Depends(get_db),
-    service_auth: ServiceAuth = Depends(get_service_auth)
-):
-    # Verify the requesting service is authorized
-    if service_auth.service_id != validation_request.service_id:
-        logger.warning(f"Service ID mismatch in token validation: {service_auth.service_id} vs {validation_request.service_id}")
-        raise HTTPException(403, detail="Service authentication mismatch")
-    
-    try:
-        # Decode and verify the token
-        payload = jwt.decode(
-            validation_request.token,
-            settings.SECRET_KEY,
-            algorithms=[settings.ALGORITHM]
-        )
-        
-        user_id = payload.get("sub")
-        token_type = payload.get("type", "access_token")
-        
-        # Only validate user tokens
-        if token_type != "access_token":
-            raise HTTPException(400, detail="Invalid token type")
-        
-        # Check if token is in active sessions
-        if not is_token_active(db, user_id, validation_request.token):
-            raise HTTPException(401, detail="Token is invalid or expired")
-        
-        # Get user info
-        user = get_user_by_id(db, user_id)
-        if not user or not user.is_active:
-            raise HTTPException(401, detail="User account is disabled")
-        
-        # Get user's scopes for the requesting service
-        scopes = get_user_service_scopes(user.id, validation_request.service_id, db)
-        
-        # Log validation
-        logger.info(f"Token validated for user {user_id} by service {validation_request.service_id}")
-        
-        return {
-            "valid": True,
-            "user_id": user_id,
-            "username": user.username,
-            "scopes": scopes
-        }
-        
-    except JWTError:
-        logger.warning(f"Invalid token validation attempt by service {validation_request.service_id}")
-        raise HTTPException(401, detail="Invalid token")
-```
-
-### Service Token Generation
-
-```python
-@router.post("/token")
-async def generate_service_token(
-    token_request: ServiceTokenRequest,
-    admin_user: User = Depends(get_admin_user),
+@router.post(
+    "/verify", 
+    response_model=TokenVerifyResponse,
+    openapi_extra={
+        "security": [{"userAuth": [], "serviceAuth": []}]
+    }
+)
+@limiter.limit(f"{settings.RATE_LIMITS_PRIVATE_ROUTES}/{settings.RATE_LIMITS_PRIVATE_TIME_UNIT}")
+async def verify_token(
+    request: Request,
+    auth: str = Security(oauth2_scheme),
+    service_token: str = Security(api_key_header),
     db: Session = Depends(get_db)
 ):
-    # Verify service exists
-    service = get_service_by_id(db, token_request.service_id)
-    if not service:
-        raise HTTPException(404, detail="Service not found")
+    # Log verification request for audit trail
+    logger.info("Token verification request received")
     
-    # Verify requested scopes are valid for this service
-    for scope in token_request.scopes:
-        if scope not in service.available_scopes:
-            raise HTTPException(400, detail=f"Invalid scope: {scope}")
+    # Extract user token from Authorization header
+    user_token = extract_token_from_header(auth)
+    if not user_token:
+        logger.warning("Token verification failed: No user token provided")
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Not found"
+        )
     
-    # Create service token
-    expires_delta = timedelta(seconds=token_request.expires_in)
-    access_token = create_service_token(
-        data={
-            "sub": token_request.service_id,
-            "type": "service_token",
-            "scopes": token_request.scopes
-        },
-        expires_delta=expires_delta
-    )
+    # Verify service token to ensure request comes from authorized service
+    if not verify_service_token(service_token):
+        logger.warning("Token verification failed: Invalid service token")
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Not found"
+        )
     
-    # Log token generation
-    logger.info(f"Service token generated for {token_request.service_id} by admin {admin_user.id}")
+    # Look up the user by their token in the database
+    user = db.query(User).filter(User.token == user_token).first()
+    if not user:
+        logger.warning("Token verification failed: User token not found")
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Not found"
+        )
     
-    return {
-        "access_token": access_token,
-        "token_type": "bearer",
-        "expires_in": token_request.expires_in,
-        "service_id": token_request.service_id
-    }
+    # Return user information to the requesting service
+    return TokenVerifyResponse(id=user.id, email=user.email, nickname=user.nickname, role=user.role, lock=user.lock, customer_account=user.customer_account)
 ```
 
 ## Logging System
@@ -881,6 +913,48 @@ def create_access_token(data: dict, expires_delta: timedelta = None) -> str:
     
     return encoded_jwt
 ```
+
+### Authentication Headers
+
+Authentication is now handled using standard HTTP headers following these patterns:
+
+1. **User Authentication with Bearer Token**
+   ```
+   Authorization: Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...
+   ```
+   This header is used for all protected endpoints that require user authentication.
+
+2. **Service-to-Service Authentication with Dual Headers**
+   ```
+   Authorization: Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...
+   X-Service-Token: SERVICE_SECRET_TOKEN
+   ```
+   This combination is used only for the token verification endpoint which requires both types of authentication.
+
+3. **OpenAPI Security Schemes**
+
+   The API defines two security schemes in the OpenAPI specification:
+   
+   ```json
+   {
+     "components": {
+       "securitySchemes": {
+         "userAuth": {
+           "type": "http",
+           "scheme": "bearer",
+           "bearerFormat": "OPAQUE"
+         },
+         "serviceAuth": {
+           "type": "apiKey",
+           "in": "header",
+           "name": "X-Service-Token"
+         }
+       }
+     }
+   }
+   ```
+
+   These schemes are applied globally or at the individual endpoint level to define the security requirements.
 
 ### Password Validation
 

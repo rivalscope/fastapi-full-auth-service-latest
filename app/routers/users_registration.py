@@ -76,7 +76,12 @@ router = APIRouter(prefix="", tags=["Users Registration Endpoint"])
 # Set up rate limiting to prevent brute force attacks
 limiter = Limiter(key_func=get_remote_address)
 
-@router.post("/register", response_model=UserOut, status_code=status.HTTP_201_CREATED)
+@router.post(
+    "/register", 
+    response_model=UserOut, 
+    status_code=status.HTTP_201_CREATED,
+    openapi_extra={"security": []}  # Public endpoint - no auth required
+)
 @limiter.limit(f"{settings.RATE_LIMITS_PUBLIC_ROUTES}/{settings.RATE_LIMITS_PUBLIC_TIME_UNIT}")
 async def register(
     request: Request,
@@ -176,4 +181,4 @@ async def register(
     return new_user
 
 # Export router to be included in the main application
-auth_router = router
+registration_router = router
